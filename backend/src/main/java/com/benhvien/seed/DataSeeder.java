@@ -7,6 +7,7 @@ import com.benhvien.domain.CaTruc;
 import com.benhvien.domain.ChamSoc;
 import com.benhvien.domain.ChiTietThuoc;
 import com.benhvien.domain.DanhGia;
+import com.benhvien.domain.DangKyKham;
 import com.benhvien.domain.DonThuoc;
 import com.benhvien.domain.GiuongBenh;
 import com.benhvien.domain.Khoa;
@@ -16,6 +17,7 @@ import com.benhvien.domain.LichCaTruc;
 import com.benhvien.domain.LichLamViec;
 import com.benhvien.domain.NguoiDung;
 import com.benhvien.domain.PhongKham;
+import com.benhvien.domain.TrangThaiDangKy;
 import com.benhvien.domain.Thuoc;
 import com.benhvien.domain.TrangThaiGiuong;
 import com.benhvien.domain.TrangThaiKham;
@@ -31,6 +33,7 @@ import com.benhvien.repository.CaTrucRepository;
 import com.benhvien.repository.ChamSocRepository;
 import com.benhvien.repository.ChiTietThuocRepository;
 import com.benhvien.repository.DanhGiaRepository;
+import com.benhvien.repository.DangKyKhamRepository;
 import com.benhvien.repository.DonThuocRepository;
 import com.benhvien.repository.GiuongBenhRepository;
 import com.benhvien.repository.KhoaRepository;
@@ -80,6 +83,7 @@ public class DataSeeder implements ApplicationRunner {
     private final NguoiDungRepository nguoiDungRepo;
     private final PasswordEncoder passwordEncoder;
     private final DanhGiaRepository danhGiaRepo;
+    private final DangKyKhamRepository dangKyKhamRepo;
 
     public DataSeeder(BenhVienRepository benhVienRepo, KhoaRepository khoaRepo,
                       PhongKhamRepository phongKhamRepo, GiuongBenhRepository giuongRepo,
@@ -90,7 +94,7 @@ public class DataSeeder implements ApplicationRunner {
                       DonThuocRepository donThuocRepo, ChiTietThuocRepository chiTietThuocRepo,
                       ThuocRepository thuocRepo, XetNghiemRepository xetNghiemRepo,
                       NguoiDungRepository nguoiDungRepo, PasswordEncoder passwordEncoder,
-                      DanhGiaRepository danhGiaRepo) {
+                      DanhGiaRepository danhGiaRepo, DangKyKhamRepository dangKyKhamRepo) {
         this.benhVienRepo = benhVienRepo;
         this.khoaRepo = khoaRepo;
         this.phongKhamRepo = phongKhamRepo;
@@ -111,6 +115,7 @@ public class DataSeeder implements ApplicationRunner {
         this.nguoiDungRepo = nguoiDungRepo;
         this.passwordEncoder = passwordEncoder;
         this.danhGiaRepo = danhGiaRepo;
+        this.dangKyKhamRepo = dangKyKhamRepo;
     }
 
     @Override
@@ -129,6 +134,9 @@ public class DataSeeder implements ApplicationRunner {
         boSungAnhVaGioChoBenhVienBanDo();
         if (danhGiaRepo.count() == 0) {
             seedDanhGiaBenhVienBanDo();
+        }
+        if (dangKyKhamRepo.count() == 0) {
+            seedDangKyKhamMau();
         }
 
         if (benhVienRepo.count() > 0) {
@@ -603,6 +611,39 @@ public class DataSeeder implements ApplicationRunner {
             }
             i++;
         }
+    }
+
+    /** Đăng ký khám mẫu của bệnh nhân demo tại 2 bệnh viện trên bản đồ. */
+    private void seedDangKyKhamMau() {
+        List<BenhVien> cacBv = benhVienRepo.findAll().stream()
+                .filter(b -> b.getViDo() != null)
+                .toList();
+        List<NguoiDung> benhNhan = nguoiDungRepo.findAll().stream()
+                .filter(n -> n.getVaiTro() == VaiTro.BENH_NHAN)
+                .toList();
+        if (cacBv.size() < 2 || benhNhan.isEmpty()) {
+            return;
+        }
+        ZoneId vietNam = ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalDateTime gio = LocalDateTime.now(vietNam);
+        DangKyKham dk1 = new DangKyKham();
+        dk1.setBenhVien(cacBv.get(0));
+        dk1.setNguoiDung(benhNhan.get(0));
+        dk1.setBenhLy("Định kỳ kiểm tra tổng quát");
+        dk1.setThoiGianHen(gio.plusDays(2).withHour(8).withMinute(0).withSecond(0).withNano(0));
+        dk1.setGhiChu("Xin khám buổi sáng");
+        dk1.setTrangThai(TrangThaiDangKy.CHO_DUYET);
+        dk1.setThoiGianDangKy(gio.minusHours(3));
+        dangKyKhamRepo.save(dk1);
+
+        DangKyKham dk2 = new DangKyKham();
+        dk2.setBenhVien(cacBv.get(1));
+        dk2.setNguoiDung(benhNhan.get(0));
+        dk2.setBenhLy("Đau dạ dày âm ỉ nhiều ngày");
+        dk2.setThoiGianHen(gio.plusDays(1).withHour(14).withMinute(30).withSecond(0).withNano(0));
+        dk2.setTrangThai(TrangThaiDangKy.DA_DUYET);
+        dk2.setThoiGianDangKy(gio.minusDays(1));
+        dangKyKhamRepo.save(dk2);
     }
 
     /** Khoa đại diện kèm 1 bác sĩ và 1 y tá cho bệnh viện trên bản đồ. */

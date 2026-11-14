@@ -8,9 +8,11 @@ import {
   type BenhVienGan,
   type NhanSuBenhVien,
   type DanhGiaBenhVien,
+  type DangKyKhamItem,
+  type TrangThaiDangKy,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { fmtDateTime } from '@/lib/format';
+import { fmtDateTime, nowForInput } from '@/lib/format';
 import { Badge, ErrorBox, Loading, PageHeader } from '@/components/ui';
 
 interface ViTri {
@@ -25,6 +27,20 @@ function HienSao({ so }: { so: number }) {
       {'☆'.repeat(Math.max(0, 5 - so))}
     </span>
   );
+}
+
+const NHAN_TRANG_THAI: Record<TrangThaiDangKy, { text: string; tone: 'yellow' | 'green' | 'gray' }> = {
+  CHO_DUYET: { text: 'Chờ duyệt', tone: 'yellow' },
+  DA_DUYET: { text: 'Đã duyệt', tone: 'green' },
+  DA_HUY: { text: 'Đã hủy', tone: 'gray' },
+};
+
+/** Giá trị mặc định cho ô datetime-local: 8h sáng mai. */
+function henMacDinh(): string {
+  const d = new Date(Date.now() + 24 * 3600 * 1000);
+  d.setHours(8, 0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /** Trang bản đồ Việt Nam: gợi ý bệnh viện gần nhất theo bệnh lý — ảnh, giờ mở cửa,
@@ -50,6 +66,11 @@ export default function BanDoPage() {
   const [danhGia, setDanhGia] = useState<DanhGiaBenhVien | null>(null);
   const [saoChon, setSaoChon] = useState(5);
   const [noiDungDanhGia, setNoiDungDanhGia] = useState('');
+  const [dangKyCuaToi, setDangKyCuaToi] = useState<DangKyKhamItem[] | null>(null);
+  const [benhLyDk, setBenhLyDk] = useState('');
+  const [thoiGianHenDk, setThoiGianHenDk] = useState(henMacDinh());
+  const [ghiChuDk, setGhiChuDk] = useState('');
+  const [thongBaoDk, setThongBaoDk] = useState('');
   const [loading, setLoading] = useState(true);
   const [dangTim, setDangTim] = useState(false);
   const [err, setErr] = useState('');
@@ -154,6 +175,11 @@ export default function BanDoPage() {
     setDanhGia(null);
     setSaoChon(5);
     setNoiDungDanhGia('');
+    setDangKyCuaToi(null);
+    setBenhLyDk('');
+    setGhiChuDk('');
+    setThongBaoDk('');
+    setThoiGianHenDk(henMacDinh());
     const map = mapRef.current;
     if (map && bv.viDo != null && bv.kinhDo != null) {
       map.flyTo([bv.viDo, bv.kinhDo], 15, { duration: 1.0 });
@@ -166,7 +192,13 @@ export default function BanDoPage() {
       .danhGia(bv.id)
       .then(setDanhGia)
       .catch((ex) => setErr(ex instanceof Error ? ex.message : 'Không tải được đánh giá'));
-  }, []);
+    if (vaiTro === 'BENH_NHAN') {
+      timKiemApi
+        .dangKyCuaToi(bv.id)
+        .then(setDangKyCuaToi)
+        .catch(() => setDangKyCuaToi([]));
+    }
+  }, [vaiTro]);
 
   // ===== Tìm bệnh viện gần nhất theo bệnh lý + vị trí =====
   const tim = useCallback(async (viTriTim?: ViTri) => {
@@ -226,6 +258,44 @@ export default function BanDoPage() {
       setAll((a) => a.map(capNhat));
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : 'Gửi đánh giá thất bại');
+    }
+  }
+
+  // ===== Bệnh nhân gửi đăng ký khám bệnh =====
+  async function guiDangKy(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selected) return;
+    setErr('');
+    setThongBaoDk('');
+    try {
+      const moi = await timKiemApi.dangKyKham(selected.id, {
+        benhLy: benhLyDk,
+        thoiGianHen: thoiGianHenDk,
+        ghiChu: ghiChuDk || undefined,
+      });
+      setThongBaoDk('Đã gửi đăng ký khám — đang chờ bệnh viện duyệt.');
+      setBenhLyDk('');
+      setGhiChuDk('');
+      setThoiGianHenDk(henMacDinh());
+      const ds = await timKiemApi.dangKyCuaToi(selected.id);
+      setDangKyCuaToi(ds);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : 'Đăng ký khám thất bại');
+    }
+  }
+
+  // ===== Bệnh nhân hủy đăng ký khám của chính mình =====
+  async function huyDangKy(idDangKy: number) {
+    if (!selected) return;
+    setErr('');
+    setThongBaoDk('');
+    try {
+      await timKiemApi.huyDangKy(idDangKy);
+      setThongBaoDk('Đã hủy đăng ký khám.');
+      const ds = await timKiemApi.dangKyCuaToi(selected.id);
+      setDangKyCuaToi(ds);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : 'Hủy đăng ký thất bại');
     }
   }
 
@@ -438,6 +508,108 @@ export default function BanDoPage() {
                   </ul>
                 </div>
               )}
+
+              {/* Đăng ký khám bệnh — phân quyền: chỉ BỆNH NHÂN */}
+              <div className="border-b border-slate-100 p-4">
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Đăng ký khám bệnh
+                </h3>
+                {laBenhNhan ? (
+                  <>
+                    {thongBaoDk && (
+                      <p className="mb-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                        {thongBaoDk}
+                      </p>
+                    )}
+                    <form onSubmit={guiDangKy} className="space-y-2 rounded-lg border border-sky-100 bg-sky-50/60 p-3">
+                      <div>
+                        <label htmlFor="benhLyDk" className="mb-1 block text-xs font-medium text-slate-700">
+                          Bệnh lý / triệu chứng <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          id="benhLyDk"
+                          type="text"
+                          required
+                          value={benhLyDk}
+                          onChange={(e) => setBenhLyDk(e.target.value)}
+                          placeholder="VD: đau dạ dày, khám tổng quát..."
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="thoiGianHenDk" className="mb-1 block text-xs font-medium text-slate-700">
+                          Thời gian hẹn <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          id="thoiGianHenDk"
+                          type="datetime-local"
+                          required
+                          min={nowForInput()}
+                          value={thoiGianHenDk}
+                          onChange={(e) => setThoiGianHenDk(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="ghiChuDk" className="mb-1 block text-xs font-medium text-slate-700">
+                          Ghi chú
+                        </label>
+                        <input
+                          id="ghiChuDk"
+                          type="text"
+                          value={ghiChuDk}
+                          onChange={(e) => setGhiChuDk(e.target.value)}
+                          placeholder="Tùy chọn — xin khám buổi sáng, có BHYT..."
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="w-full rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-sky-700"
+                      >
+                        Gửi đăng ký khám
+                      </button>
+                    </form>
+
+                    {dangKyCuaToi && dangKyCuaToi.length > 0 && (
+                      <div className="mt-3">
+                        <p className="mb-1.5 text-xs font-semibold text-slate-600">
+                          Đăng ký của bạn tại bệnh viện này ({dangKyCuaToi.length}):
+                        </p>
+                        <ul className="space-y-2">
+                          {dangKyCuaToi.map((dk) => (
+                            <li key={dk.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-medium text-slate-800">
+                                  {dk.thoiGianHen ? fmtDateTime(dk.thoiGianHen) : ''}
+                                </span>
+                                <Badge
+                                  text={NHAN_TRANG_THAI[dk.trangThai].text}
+                                  tone={NHAN_TRANG_THAI[dk.trangThai].tone}
+                                />
+                              </div>
+                              <p className="text-xs text-slate-500">{dk.benhLy}</p>
+                              {dk.ghiChu && <p className="text-xs text-slate-400">Ghi chú: {dk.ghiChu}</p>}
+                              {dk.trangThai === 'CHO_DUYET' && (
+                                <button
+                                  onClick={() => void huyDangKy(dk.id)}
+                                  className="mt-1 text-xs font-semibold text-rose-600 hover:underline"
+                                >
+                                  Hủy đăng ký
+                                </button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                    Chỉ tài khoản vai trò <b>Bệnh nhân</b> mới có thể đăng ký khám bệnh.
+                  </p>
+                )}
+              </div>
 
               {/* Đánh giá */}
               {danhGia && (

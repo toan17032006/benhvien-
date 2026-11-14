@@ -289,6 +289,18 @@ export interface DanhGiaBenhVien {
   danhSach: DanhGiaItem[];
 }
 
+export type TrangThaiDangKy = 'CHO_DUYET' | 'DA_DUYET' | 'DA_HUY';
+
+export interface DangKyKhamItem {
+  id: number;
+  tenBenhVien?: string | null;
+  benhLy?: string | null;
+  thoiGianHen?: string | null;
+  ghiChu?: string | null;
+  trangThai: TrangThaiDangKy;
+  thoiGianDangKy?: string | null;
+}
+
 export const timKiemApi = {
   /** Nhóm bệnh lý gợi ý cho ô tìm kiếm. */
   benhLyGoiY: () => api.get<string[]>('/api/tim-kiem/benh-ly'),
@@ -302,4 +314,13 @@ export const timKiemApi = {
   /** Viết đánh giá — chỉ BỆNH NHÂN (backend trả 403 nếu vai trò khác). */
   vietDanhGia: (id: number, d: { soSao: number; noiDung: string }) =>
     api.post<DanhGiaBenhVien>(`/api/tim-kiem/benh-vien/${id}/danh-gia`, d),
+  /** Đăng ký khám bệnh tại bệnh viện — chỉ BỆNH NHÂN (403 nếu vai trò khác). */
+  dangKyKham: (id: number, d: { benhLy: string; thoiGianHen: string; ghiChu?: string }) =>
+    api.post<DangKyKhamItem>(`/api/tim-kiem/benh-vien/${id}/dang-ky-kham`, d),
+  /** Đăng ký khám của tài khoản đang đăng nhập tại một bệnh viện. */
+  dangKyCuaToi: (id: number) =>
+    api.get<DangKyKhamItem[]>(`/api/tim-kiem/benh-vien/${id}/dang-ky-cua-toi`),
+  /** Hủy đăng ký khám của chính mình (chỉ khi còn chờ duyệt). */
+  huyDangKy: (idDangKy: number) =>
+    api.post<DangKyKhamItem>(`/api/tim-kiem/dang-ky/${idDangKy}/huy`, {}),
 };

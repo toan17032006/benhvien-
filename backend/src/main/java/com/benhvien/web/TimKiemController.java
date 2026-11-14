@@ -3,17 +3,22 @@ package com.benhvien.web;
 import com.benhvien.domain.BacSi;
 import com.benhvien.domain.BenhVien;
 import com.benhvien.domain.DanhGia;
+import com.benhvien.domain.DangKyKham;
 import com.benhvien.domain.Khoa;
 import com.benhvien.domain.NguoiDung;
+import com.benhvien.domain.TrangThaiDangKy;
 import com.benhvien.domain.VaiTro;
 import com.benhvien.domain.YTa;
 import com.benhvien.repository.BacSiRepository;
 import com.benhvien.repository.BenhVienRepository;
+import com.benhvien.repository.DangKyKhamRepository;
 import com.benhvien.repository.DanhGiaRepository;
 import com.benhvien.repository.KhoaRepository;
 import com.benhvien.repository.YTaRepository;
 import com.benhvien.web.dto.BacSiView;
 import com.benhvien.web.dto.BenhVienGanRes;
+import com.benhvien.web.dto.DangKyKhamReq;
+import com.benhvien.web.dto.DangKyKhamView;
 import com.benhvien.web.dto.DanhGiaReq;
 import com.benhvien.web.dto.DanhGiaRes;
 import com.benhvien.web.dto.DanhGiaView;
@@ -71,6 +76,7 @@ public class TimKiemController {
     private final BacSiRepository bacSiRepo;
     private final YTaRepository yTaRepo;
     private final DanhGiaRepository danhGiaRepo;
+    private final DangKyKhamRepository dangKyKhamRepo;
 
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(3))
@@ -79,12 +85,13 @@ public class TimKiemController {
 
     public TimKiemController(BenhVienRepository benhVienRepo, KhoaRepository khoaRepo,
                              BacSiRepository bacSiRepo, YTaRepository yTaRepo,
-                             DanhGiaRepository danhGiaRepo) {
+                             DanhGiaRepository danhGiaRepo, DangKyKhamRepository dangKyKhamRepo) {
         this.benhVienRepo = benhVienRepo;
         this.khoaRepo = khoaRepo;
         this.bacSiRepo = bacSiRepo;
         this.yTaRepo = yTaRepo;
         this.danhGiaRepo = danhGiaRepo;
+        this.dangKyKhamRepo = dangKyKhamRepo;
     }
 
     /** Bệnh lý phổ biến → từ khóa chuyên môn (so khớp với tên/mô tả khoa và chuyên môn bác sĩ). */
@@ -311,6 +318,57 @@ public class TimKiemController {
         return taoDanhGiaRes(bv);
     }
 
+    /** Đăng ký khám bệnh tại bệnh viện — PHÂN QUYỀN: chỉ vai trò BỆNH NHÂN. */
+    @PostMapping("/benh-vien/{id}/dang-ky-kham")
+    @Transactional
+    public DangKyKhamView dangKyKham(@PathVariable Long id, @Valid @RequestBody DangKyKhamReq r) {
+        NguoiDung nguoi = nguoiDungHienTai();
+        if (nguoi.getVaiTro() != VaiTro.BENH_NHAN) {
+            throw new AccessDeniedException("Chỉ bệnh nhân mới được đăng ký khám bệnh.");
+        }
+        if (r.thoiGianHen().isBefore(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")))) {
+            throw new IllegalArgumentException("Thời gian hẹn phải sau thời điểm hiện tại.");
+        }
+        BenhVien bv = benhVienRepo.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy bệnh viện " + id));
+        DangKyKham dk = new DangKyKham();
+        dk.setBenhVien(bv);
+        dk.setNguoiDung(nguoi);
+        dk.setBenhLy(r.benhLy());
+        dk.setThoiGianHen(r.thoiGianHen());
+        dk.setGhiChu(r.ghiChu());
+        dk.setTrangThai(TrangThaiDangKy.CHO_DUYET);
+        dk.setThoiGianDangKy(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+        dangKyKhamRepo.save(dk);
+        return viewDangKy(dk);
+    }
+
+    /** Đăng ký khám của chính tài khoản đang đăng nhập, tại một bệnh viện. */
+    @GetMapping("/benh-vien/{id}/dang-ky-cua-toi")
+    public List<DangKyKhamView> dangKyCuaToiTaiBenhVien(@PathVariable Long id) {
+        NguoiDung nguoi = nguoiDungHienTai();
+        return dangKyKhamRepo
+                .findByNguoiDungIdAndBenhVienIdOrderByThoiGianDangKyDesc(nguoi.getId(), id)
+                .stream().map(this::viewDangKy).toList();
+    }
+
+    /** Hủy đăng ký khám của chính mình (chỉ khi còn ở trạng thái chờ duyệt). */
+    @PostMapping("/dang-ky/{idDangKy}/huy")
+    @Transactional
+    public DangKyKhamView huyDangKy(@PathVariable Long idDangKy) {
+        NguoiDung nguoi = nguoiDungHienTai();
+        DangKyKham dk = dangKyKhamRepo.findById(idDangKy)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy đăng ký khám " + idDangKy));
+        if (!dk.getNguoiDung().getId().equals(nguoi.getId())) {
+            throw new AccessDeniedException("Chỉ được hủy đăng ký khám của chính mình.");
+        }
+        if (dk.getTrangThai() != TrangThaiDangKy.CHO_DUYET) {
+            throw new IllegalArgumentException("Chỉ đăng ký đang chờ duyệt mới có thể hủy.");
+        }
+        dk.setTrangThai(TrangThaiDangKy.DA_HUY);
+        return viewDangKy(dk);
+    }
+
     // ===== Hàm nội bộ =====
 
     private NguoiDung nguoiDungHienTai() {
@@ -333,6 +391,15 @@ public class TimKiemController {
                         dg.getThoiGian() == null ? null : dg.getThoiGian().toString()))
                 .toList();
         return new DanhGiaRes(bv.getId(), bv.getTen(), trungBinh, ds.size(), danhSach);
+    }
+
+    private DangKyKhamView viewDangKy(DangKyKham dk) {
+        return new DangKyKhamView(dk.getId(),
+                dk.getBenhVien() == null ? null : dk.getBenhVien().getTen(),
+                dk.getBenhLy(), dk.getThoiGianHen() == null ? null : dk.getThoiGianHen().toString(),
+                dk.getGhiChu(),
+                dk.getTrangThai() == null ? null : dk.getTrangThai().name(),
+                dk.getThoiGianDangKy() == null ? null : dk.getThoiGianDangKy().toString());
     }
 
     /** Trạng thái mở cửa theo giờ hiện tại (mở qua đêm nếu giờ đóng < giờ mở). */

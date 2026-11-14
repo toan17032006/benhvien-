@@ -53,6 +53,7 @@ Trang **`/ban-do`** (menu "Tìm bệnh viện → Bản đồ bệnh viện") �
 - 🚗 **Thời gian di chuyển thật**: gọi dịch vụ định tuyến **OSRM** tính quãng đường + số phút đi đường bộ từ vị trí của bạn (nếu OSRM không phản hồi thì hiển thị "ước lượng").
 - 👨‍⚕️ **Nhân sự bệnh viện**: chọn bệnh viện → xem bác sĩ (chuyên môn, học hàm, khoa) và y tá (trình độ, khoa).
 - ⭐ **Đánh giá (review)**: điểm trung bình ★, danh sách nhận xét; **chỉ BỆNH NHÂN** được viết đánh giá (backend trả 403 cho vai trò khác).
+- 📝 **Đăng ký khám bệnh ngay trên bản đồ**: bệnh nhân chọn bệnh viện → điền bệnh lý/triệu chứng + thời gian hẹn (+ ghi chú) → gửi đăng ký (trạng thái **Chờ duyệt**); xem lại "Đăng ký của bạn tại bệnh viện này" và **hủy** đăng ký còn chờ duyệt. Backend trả 403 nếu vai trò khác đăng ký; không cho hẹn thời gian trong quá khứ.
 - 🎯 Chọn bệnh viện (marker hoặc danh sách) → bản đồ **bay thẳng đến bệnh viện đó** (zoom 15) + marker sáng lên như Google Maps.
 - 🔐 **Phân quyền rõ**: SIDEBAR theo vai trò — Bệnh nhân chỉ thấy "Tổng quan + Bản đồ bệnh viện"; Bác sĩ thấy thêm Khám & điều trị, Nhân sự & lịch, Kho thuốc; Admin thấy toàn bộ (kể cả Cơ sở vật chất).
 - API: `/api/tim-kiem/benh-ly`, `/api/tim-kiem/benh-vien-gan`, `/api/tim-kiem/benh-vien/{id}/nhan-su`, `/api/tim-kiem/benh-vien/{id}/danh-gia` (GET/POST).
