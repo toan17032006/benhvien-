@@ -174,13 +174,22 @@ async function handle<T>(res: Response): Promise<T> {
   return res.json();
 }
 
+/** Header xác thực (Bearer token lưu ở localStorage) gắn vào mọi request. */
+function authHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export const api = {
-  get: <T>(path: string) => fetch(path).then((r) => handle<T>(r)),
+  get: <T>(path: string) =>
+    fetch(path, { headers: authHeaders() }).then((r) => handle<T>(r)),
   post: <T>(path: string, body: unknown) =>
-    fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => handle<T>(r)),
+    fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) }).then((r) => handle<T>(r)),
   put: <T>(path: string, body: unknown) =>
-    fetch(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => handle<T>(r)),
-  del: (path: string) => fetch(path, { method: 'DELETE' }).then((r) => handle<void>(r)),
+    fetch(path, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) }).then((r) => handle<T>(r)),
+  del: (path: string) =>
+    fetch(path, { method: 'DELETE', headers: authHeaders() }).then((r) => handle<void>(r)),
 };
 
 /** Ghép chuỗi truy vấn, bỏ qua tham số rỗng. */

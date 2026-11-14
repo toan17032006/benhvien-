@@ -13,6 +13,34 @@
 
 ---
 
+## 🔐 Đăng nhập & Đăng ký (tính năng mới — nhánh `hospital`)
+
+Nhánh `hospital` bổ sung **hệ thống đăng nhập/đăng ký đầy đủ**, giữ nguyên 100% tính năng của bản gốc:
+
+- Đăng nhập bằng tên đăng nhập + mật khẩu (mã hóa **BCrypt**), phiên đăng nhập bằng **JWT** (hết hạn sau 24 giờ).
+- Đăng ký tài khoản mới với vai trò: **Bệnh nhân** (mặc định), **Bác sĩ**, **Quản trị viên**.
+- 🆕 **Đăng nhập/Đăng ký bằng Google** — dùng tài khoản Google, tự tạo tài khoản nếu lần đầu đăng nhập.
+- Toàn bộ API quản lý (`/api/**` trừ đăng nhập/đăng ký) giờ **yêu cầu đăng nhập** (trả 401 nếu chưa có token).
+
+**Tài khoản mẫu tự tạo khi chạy lần đầu:**
+
+| Tài khoản | Mật khẩu | Vai trò |
+|---|---|---|
+| `admin` | `admin123` | Quản trị viên |
+| `bacsi` | `doctor123` | Bác sĩ |
+| `benhnhan` | `patient123` | Bệnh nhân |
+
+**Bật "Đăng nhập bằng Google" (không bắt buộc):**
+
+1. Tạo OAuth 2.0 Client ID tại https://console.cloud.google.com/apis/credentials — Application type: *Web application*, Authorized JavaScript origins: `http://localhost:3000`.
+2. Frontend: chép `frontend/.env.example` → `frontend/.env.local`, điền `NEXT_PUBLIC_GOOGLE_CLIENT_ID=<client-id>`.
+3. Backend: đặt biến môi trường `GOOGLE_CLIENT_ID=<client-id>` (hoặc sửa `application.yml`).
+4. Chưa cấu hình thì nút Google ẩn đi một cách êm ái — phần còn lại vẫn chạy bình thường.
+
+> Chi tiết kỹ thuật cho AI/dev: xem `AGENT.md`.
+
+---
+
 ## 🚀 Chạy nhanh
 
 ### Yêu cầu máy (cả người nhận code đều cần)

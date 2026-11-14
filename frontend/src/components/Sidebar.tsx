@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { tenVaiTro, useAuth } from '@/lib/auth';
 
 const NAV_GROUPS: { group: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
@@ -48,6 +49,7 @@ const NAV_GROUPS: { group: string; items: { href: string; label: string; icon: s
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { user, dangXuat } = useAuth();
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col bg-gradient-to-b from-slate-900 to-sky-950 text-slate-100">
       <div className="flex items-center gap-3 px-5 py-5">
@@ -60,6 +62,45 @@ export default function Sidebar() {
           <div className="text-base font-bold leading-tight">BenhVien</div>
           <div className="text-xs text-sky-300/80">Quản lý bệnh viện</div>
         </div>
+      </div>
+
+      {/* Người dùng hiện tại */}
+      <div className="border-b border-white/10 px-5 py-3">
+        {user ? (
+          <div className="flex items-center gap-3">
+            {user.anhDaiDien ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.anhDaiDien} alt="" className="h-9 w-9 rounded-full ring-1 ring-sky-400/40" />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-500/20 text-sm font-bold text-sky-300 ring-1 ring-sky-400/40">
+                {user.hoTen.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold text-white">{user.hoTen}</div>
+              <div className="text-[11px] font-medium text-sky-300/80">{tenVaiTro(user.vaiTro)}</div>
+            </div>
+            <button
+              onClick={dangXuat}
+              title="Đăng xuất"
+              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-rose-300"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <Link
+            href="/dang-nhap"
+            className="flex items-center gap-2 rounded-lg bg-sky-500/20 px-3 py-2 text-sm font-semibold text-sky-200 ring-1 ring-inset ring-sky-400/30 transition hover:bg-sky-500/30"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+            </svg>
+            Đăng nhập hệ thống
+          </Link>
+        )}
       </div>
 
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-6">

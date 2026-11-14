@@ -1,3 +1,19 @@
 
 # log
 run.log
+
+# Backend runtime (CSDL H2 file, log)
+backend/data/
+backend/*.log
+
+# Frontend runtime
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env*.local
+
+# Môi trường / hệ điều hành
+.env
+.env.local
+Thumbs.db
+.DS_Store

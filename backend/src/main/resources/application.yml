@@ -24,3 +24,14 @@ spring:
 logging:
   level:
     org.hibernate.SQL: warn
+
+# ===== Đăng nhập (JWT) & Google =====
+app:
+  jwt:
+    # Đổi bằng biến môi trường JWT_SECRET khi triển khai thật (tối thiểu 32 ký tự)
+    secret: ${JWT_SECRET:benhvien-secret-key-can-doi-truoc-khi-trien-khai-he-thong}
+    expire-hours: 24
+  google:
+    # Client ID OAuth 2.0 (giống NEXT_PUBLIC_GOOGLE_CLIENT_ID của frontend)
+    # để dùng tính năng "Đăng nhập bằng Google" — để trống thì tắt tính năng này
+    client-id: ${GOOGLE_CLIENT_ID:}

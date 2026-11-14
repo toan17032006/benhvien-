@@ -13,6 +13,7 @@ import com.benhvien.domain.LanKhamBenh;
 import com.benhvien.domain.LanNhapVien;
 import com.benhvien.domain.LichCaTruc;
 import com.benhvien.domain.LichLamViec;
+import com.benhvien.domain.NguoiDung;
 import com.benhvien.domain.PhongKham;
 import com.benhvien.domain.Thuoc;
 import com.benhvien.domain.TrangThaiGiuong;
@@ -21,6 +22,7 @@ import com.benhvien.domain.TrangThaiNhapVien;
 import com.benhvien.domain.TrangThaiXetNghiem;
 import com.benhvien.domain.XetNghiem;
 import com.benhvien.domain.YTa;
+import com.benhvien.domain.VaiTro;
 import com.benhvien.repository.BacSiRepository;
 import com.benhvien.repository.BenhNhanRepository;
 import com.benhvien.repository.BenhVienRepository;
@@ -34,12 +36,14 @@ import com.benhvien.repository.LanKhamBenhRepository;
 import com.benhvien.repository.LanNhapVienRepository;
 import com.benhvien.repository.LichCaTrucRepository;
 import com.benhvien.repository.LichLamViecRepository;
+import com.benhvien.repository.NguoiDungRepository;
 import com.benhvien.repository.PhongKhamRepository;
 import com.benhvien.repository.ThuocRepository;
 import com.benhvien.repository.XetNghiemRepository;
 import com.benhvien.repository.YTaRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,6 +74,8 @@ public class DataSeeder implements ApplicationRunner {
     private final ChiTietThuocRepository chiTietThuocRepo;
     private final ThuocRepository thuocRepo;
     private final XetNghiemRepository xetNghiemRepo;
+    private final NguoiDungRepository nguoiDungRepo;
+    private final PasswordEncoder passwordEncoder;
 
     public DataSeeder(BenhVienRepository benhVienRepo, KhoaRepository khoaRepo,
                       PhongKhamRepository phongKhamRepo, GiuongBenhRepository giuongRepo,
@@ -78,7 +84,8 @@ public class DataSeeder implements ApplicationRunner {
                       BenhNhanRepository benhNhanRepo, LanKhamBenhRepository lanKhamRepo,
                       LanNhapVienRepository lanNhapVienRepo, ChamSocRepository chamSocRepo,
                       DonThuocRepository donThuocRepo, ChiTietThuocRepository chiTietThuocRepo,
-                      ThuocRepository thuocRepo, XetNghiemRepository xetNghiemRepo) {
+                      ThuocRepository thuocRepo, XetNghiemRepository xetNghiemRepo,
+                      NguoiDungRepository nguoiDungRepo, PasswordEncoder passwordEncoder) {
         this.benhVienRepo = benhVienRepo;
         this.khoaRepo = khoaRepo;
         this.phongKhamRepo = phongKhamRepo;
@@ -96,11 +103,17 @@ public class DataSeeder implements ApplicationRunner {
         this.chiTietThuocRepo = chiTietThuocRepo;
         this.thuocRepo = thuocRepo;
         this.xetNghiemRepo = xetNghiemRepo;
+        this.nguoiDungRepo = nguoiDungRepo;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        if (nguoiDungRepo.count() == 0) {
+            taoTaiKhoanDemo();
+        }
+
         if (benhVienRepo.count() > 0) {
             return;
         }
@@ -384,5 +397,23 @@ public class DataSeeder implements ApplicationRunner {
         c.setLieuDung(lieuDung);
         c.setGhiChu(ghiChu);
         chiTietThuocRepo.save(c);
+    }
+
+    /** Tạo 3 tài khoản mẫu để thử đăng nhập ngay (chỉ khi bảng nguoi_dung còn rỗng). */
+    private void taoTaiKhoanDemo() {
+        taiKhoan("admin", "admin123", "Quản Trị Viên", "admin@benhvien.vn", VaiTro.ADMIN);
+        taiKhoan("bacsi", "doctor123", "Nguyễn Minh Quân", "bacsi@benhvien.vn", VaiTro.BAC_SI);
+        taiKhoan("benhnhan", "patient123", "Trần Thị Mai", "benhnhan@benhvien.vn", VaiTro.BENH_NHAN);
+    }
+
+    private void taiKhoan(String username, String matKhau, String hoTen, String email, VaiTro vaiTro) {
+        NguoiDung nd = new NguoiDung();
+        nd.setUsername(username);
+        nd.setMatKhau(passwordEncoder.encode(matKhau));
+        nd.setHoTen(hoTen);
+        nd.setEmail(email);
+        nd.setVaiTro(vaiTro);
+        nd.setActive(true);
+        nguoiDungRepo.save(nd);
     }
 }
