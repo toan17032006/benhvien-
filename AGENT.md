@@ -13,6 +13,7 @@
 - **Backend**: Spring Boot 4.1.2, **Java 17**, package `com.benhvien`, JPA/Hibernate (`ddl-auto=update`), **H2 file** mặc định (`backend/data/`) — **không cần cài MySQL/Docker**; MySQL tùy chọn qua profile `mysql`. Port **8081**.
 - **Frontend**: Next.js 14 (App Router), React 18, TypeScript strict, **Tailwind CSS 3** (có `tailwind.config.ts`), icon = **inline SVG** (KHÔNG dùng lucide). Port **3000**, gọi API qua **proxy `/api`** của Next (xem `next.config.mjs`) — không cần CORS.
 - **Auth (chỉ có ở nhánh hospital)**: JWT HS256 tự triển khai (JDK) + BCrypt + Spring Security; token + user lưu `localStorage` frontend; **Đăng nhập bằng Google** qua Google Identity Services, backend xác minh ID token bằng endpoint `tokeninfo` của Google (không thêm thư viện ngoài).
+- **Bản đồ bệnh viện (nhánh hospital)**: trang `/ban-do` dùng **Leaflet + OpenStreetMap** (duy nhất thư viện ngoài bổ sung — `leaflet` + `@types/leaflet`); backend `/api/tim-kiem/*` tìm bệnh viện gần nhất theo bệnh lý (Haversine, ghép bệnh lý → khoa/chuyên môn); `BenhVien` có `viDo/kinhDo`; seed 10 bệnh viện thật trên bản đồ.
 - **Tài khoản mẫu seed tự động**: `admin/admin123` (ADMIN), `bacsi/doctor123` (BAC_SI), `benhnhan/patient123` (BENH_NHAN).
 
 ## 2. Quy tắc Git bắt buộc
@@ -34,6 +35,7 @@
 |---|---|---|
 | Thực thể mới | `domain/` (+ `repository/` nếu mới) — schema chỉ đổi qua entity | — |
 | API mới | `web/XxxController.java` + record `web/dto/XxxReq.java` | gọi qua `lib/api.ts` |
+| Tìm kiếm/bản đồ | `web/TimKiemController.java` (gần nhất theo bệnh lý, nhân sự BV) | `app/ban-do/page.tsx` (Leaflet) |
 | Nghiệp vụ auth | `auth/` (JWT, Google) + `web/AuthController.java` | `lib/auth.tsx` |
 | Cấu hình Spring | `config/` (SecurityConfig, WebConfig) | — |
 | Dữ liệu mẫu | `seed/DataSeeder.java` | — |

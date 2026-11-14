@@ -41,6 +41,19 @@ Nhánh `hospital` bổ sung **hệ thống đăng nhập/đăng ký đầy đủ
 
 ---
 
+## 🗺️ Bản đồ bệnh viện Việt Nam (tính năng mới — nhánh `hospital`)
+
+Trang **`/ban-do`** (menu "Tìm bệnh viện → Bản đồ bệnh viện") — bản đồ tương tác toàn Việt Nam dùng **Leaflet + OpenStreetMap** (không cần API key):
+
+- 📍 Hiển thị **tất cả bệnh viện có tọa độ** trên bản đồ (seed sẵn 10 bệnh viện thật: Bạch Mai, Việt Đức, Nhi TƯ, Tim Hà Nội, Nghệ An, Huế, Đà Nẵng, Chợ Rẫy, ĐH Y Dược TP.HCM, Cần Thơ — mỗi nơi có khoa đại diện + bác sĩ/y tá mẫu).
+- 🔎 **Tìm bệnh viện gần nhất theo bệnh lý**: nhập bệnh lý (VD: "đau tim", "tiểu đường", "gãy xương"…) — hệ thống ghép với khoa/chuyên môn phù hợp và sắp xếp theo **khoảng cách Haversine** từ vị trí của bạn.
+- 🧭 Chọn vị trí: nút **"Vị trí của tôi"** (định vị GPS trình duyệt) hoặc **nhấp trực tiếp lên bản đồ** để đặt điểm.
+- 👨‍⚕️ **Nhân sự bệnh viện**: chọn bệnh viện trên bản đồ/danh sách → xem đầy đủ bác sĩ (chuyên môn, học hàm, khoa, SĐT) và y tá (trình độ, khoa, SĐT).
+- API mới: `/api/tim-kiem/benh-ly`, `/api/tim-kiem/benh-vien-gan?viDo=&kinhDo=&benhLy=`, `/api/tim-kiem/benh-vien/{id}/nhan-su` (đều cần đăng nhập).
+- Bệnh viện thêm qua trang "Bệnh viện" giờ có 2 ô mới: **Vĩ độ (viDo)**, **Kinh độ (kinhDo)** để hiện trên bản đồ.
+
+---
+
 ## 🚀 Chạy nhanh
 
 ### Yêu cầu máy (cả người nhận code đều cần)

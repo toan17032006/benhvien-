@@ -6,5 +6,7 @@ public record BenhVienReq(
         @NotBlank String ten,
         String diaChi,
         String soDienThoai,
-        String email
+        String email,
+        Double viDo,
+        Double kinhDo
 ) {}

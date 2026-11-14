@@ -6,6 +6,8 @@ export interface BenhVien {
   diaChi?: string | null;
   soDienThoai?: string | null;
   email?: string | null;
+  viDo?: number | null;
+  kinhDo?: number | null;
 }
 
 export interface Khoa {
@@ -201,3 +203,65 @@ export function qs(params: Record<string, string | number | undefined | null>): 
   const s = sp.toString();
   return s ? `?${s}` : '';
 }
+
+// ===== Tìm bệnh viện gần nhất trên bản đồ Việt Nam =====
+
+export interface KhoaPhuHop {
+  id: number;
+  tenKhoa: string;
+  moTa?: string | null;
+  soBacSi: number;
+}
+
+export interface BenhVienGan {
+  id: number;
+  ten: string;
+  diaChi?: string | null;
+  soDienThoai?: string | null;
+  email?: string | null;
+  viDo?: number | null;
+  kinhDo?: number | null;
+  khoangCachKm?: number | null;
+  khoaPhuHop: KhoaPhuHop[];
+  soKhoa: number;
+  soBacSi: number;
+  soYTa: number;
+}
+
+export interface BacSiNhanSu {
+  id: number;
+  maBacSi: string;
+  hoTen: string;
+  chuyenMon?: string | null;
+  hocHam?: string | null;
+  soDienThoai?: string | null;
+  email?: string | null;
+  tenKhoa: string;
+}
+
+export interface YTaNhanSu {
+  id: number;
+  maYTa: string;
+  hoTen: string;
+  trinhDo?: string | null;
+  soDienThoai?: string | null;
+  email?: string | null;
+  tenKhoa: string;
+}
+
+export interface NhanSuBenhVien {
+  benhVienId: number;
+  tenBenhVien: string;
+  bacSi: BacSiNhanSu[];
+  yTa: YTaNhanSu[];
+}
+
+export const timKiemApi = {
+  /** Nhóm bệnh lý gợi ý cho ô tìm kiếm. */
+  benhLyGoiY: () => api.get<string[]>('/api/tim-kiem/benh-ly'),
+  /** Bệnh viện gần nhất từ vị trí của bệnh nhân, ưu tiên khoa phù hợp với bệnh lý. */
+  benhVienGan: (p: { viDo?: number; kinhDo?: number; benhLy?: string }) =>
+    api.get<BenhVienGan[]>(`/api/tim-kiem/benh-vien-gan${qs(p)}`),
+  /** Nhân sự (bác sĩ + y tá) của một bệnh viện. */
+  nhanSu: (id: number) => api.get<NhanSuBenhVien>(`/api/tim-kiem/benh-vien/${id}/nhan-su`),
+};

@@ -57,5 +57,7 @@ public class BenhVienController {
         e.setDiaChi(r.diaChi());
         e.setSoDienThoai(r.soDienThoai());
         e.setEmail(r.email());
+        e.setViDo(r.viDo());
+        e.setKinhDo(r.kinhDo());
     }
 }

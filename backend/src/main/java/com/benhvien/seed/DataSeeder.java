@@ -114,6 +114,11 @@ public class DataSeeder implements ApplicationRunner {
             taoTaiKhoanDemo();
         }
 
+        // Bệnh viện có tọa độ cho tính năng bản đồ Việt Nam — chạy cả với CSDL đã có dữ liệu cũ
+        if (benhVienRepo.findAll().stream().noneMatch(b -> b.getViDo() != null)) {
+            seedBenhVienBanDo();
+        }
+
         if (benhVienRepo.count() > 0) {
             return;
         }
@@ -415,5 +420,109 @@ public class DataSeeder implements ApplicationRunner {
         nd.setVaiTro(vaiTro);
         nd.setActive(true);
         nguoiDungRepo.save(nd);
+    }
+
+    // ===== Bệnh viện trên bản đồ Việt Nam (tìm bệnh viện gần nhất theo bệnh lý) =====
+
+    /** Thêm các bệnh viện nổi tiếng khắp Việt Nam kèm tọa độ, khoa đại diện và nhân sự. */
+    private void seedBenhVienBanDo() {
+        // Hà Nội
+        BenhVien bm = benhVienMoi("Bệnh viện Bạch Mai", "78 Giải Phóng, Phương Đình, Hai Bà Trưng, Hà Nội", "024-3826-9083", 20.9860, 105.8457);
+        doiKhoa("KHOA-BM-01", bm, "Khoa Tim mạch", "Cao huyết áp, nhồi máu cơ tim, loạn nhịp tim",
+                "Nguyễn Trọng Hợp", "Tiến sĩ", "0901000001", "tronghop.bm@benhvien.vn",
+                "Lê Thị Hoa", "Đại học Điều dưỡng", "0902000001", "hoa.bm@benhvien.vn");
+        doiKhoa("KHOA-BM-02", bm, "Khoa Tiêu hóa", "Viêm dạ dày, bệnh lý gan ruột, nội soi tiêu hóa",
+                "Phạm Đức Dũng", "Thạc sĩ", "0901000002", "ducdung.bm@benhvien.vn",
+                "Vũ Thị Ngọc", "Cao đẳng Điều dưỡng", "0902000002", "ngoc.bm@benhvien.vn");
+
+        BenhVien vd = benhVienMoi("Bệnh viện Việt Đức", "16 Phó Đức Chính, Hoàn Kiếm, Hà Nội", "024-3825-3531", 21.0248, 105.8489);
+        doiKhoa("KHOA-VD-01", vd, "Khoa Ngoại tổng hợp", "Phẫu thuật, chấn thương, cấp cứu ngoại khoa",
+                "Đinh Văn Khánh", "Tiến sĩ", "0901000003", "vankhanh.vd@benhvien.vn",
+                "Đỗ Thị Hồng", "Đại học Điều dưỡng", "0902000003", "hong.vd@benhvien.vn");
+        doiKhoa("KHOA-VD-02", vd, "Khoa Hô hấp", "Hen suyễn, viêm phổi, bệnh lý phế quản",
+                "Trịnh Quang Minh", "Thạc sĩ", "0901000004", "quangminh.vd@benhvien.vn",
+                "Ngô Thị Thu", "Cao đẳng Điều dưỡng", "0902000004", "thu.vd@benhvien.vn");
+
+        BenhVien nhi = benhVienMoi("Bệnh viện Nhi Trung ương", "18 La Thành, Đống Đa, Hà Nội", "024-3836-1121", 21.0335, 105.8396);
+        doiKhoa("KHOA-NI-01", nhi, "Khoa Nhi khoa", "Khám chữa bệnh cho trẻ em và trẻ sơ sinh",
+                "Hà Văn Tuấn", "Tiến sĩ", "0901000005", "vantuan.ni@benhvien.vn",
+                "Bùi Thị Lan", "Đại học Điều dưỡng", "0902000005", "lan.ni@benhvien.vn");
+        doiKhoa("KHOA-NI-02", nhi, "Khoa Thần kinh", "Đau đầu, động kinh, bệnh lý thần kinh trẻ em",
+                "Lương Kim Chi", "Thạc sĩ", "0901000006", "kimchi.ni@benhvien.vn",
+                "Tạ Thị Mến", "Cao đẳng Điều dưỡng", "0902000006", "men.ni@benhvien.vn");
+
+        BenhVien timhn = benhVienMoi("Bệnh viện Tim Hà Nội", "4 Phủ Doãn, Hoàn Kiếm, Hà Nội", "024-3826-5055", 21.0057, 105.8417);
+        doiKhoa("KHOA-TH-01", timhn, "Khoa Tim mạch", "Thăm khám và điều trị chuyên sâu bệnh lý tim mạch",
+                "Vũ Trọng Đài", "Giáo sư", "0901000007", "trongdai.th@benhvien.vn",
+                "Cao Thị Bình", "Đại học Điều dưỡng", "0902000007", "binh.th@benhvien.vn");
+
+        // Miền Trung
+        BenhVien na = benhVienMoi("Bệnh viện Hữu nghị Đa khoa Nghệ An", "Lê Hữu Trác, Hưng Bình, Vinh, Nghệ An", "0238-3831-666", 18.6738, 105.6972);
+        doiKhoa("KHOA-NA-01", na, "Khoa Hô hấp", "Điều trị bệnh lý hô hấp, hen suyễn, viêm phổi",
+                "Hoàng Thanh Sơn", "Thạc sĩ", "0901000008", "thanhson.na@benhvien.vn",
+                "Dương Thị Hạnh", "Cao đẳng Điều dưỡng", "0902000008", "hanh.na@benhvien.vn");
+        doiKhoa("KHOA-NA-02", na, "Khoa Tim mạch", "Tim mạch học, cao huyết áp, bệnh van tim",
+                "Phan Bá Cường", "Tiến sĩ", "0901000009", "bacuong.na@benhvien.vn",
+                "Nghi Thị Thúy", "Đại học Điều dưỡng", "0902000009", "thuy.na@benhvien.vn");
+
+        BenhVien hue = benhVienMoi("Bệnh viện Trung ương Huế", "16 Lê Lợi, Vĩnh Ninh, Huế", "0234-3833-984", 16.4637, 107.5909);
+        doiKhoa("KHOA-HU-01", hue, "Khoa Mắt", "Khám và phẫu thuật các bệnh lý mắt, thi lực",
+                "Chu Cẩm Tú", "Tiến sĩ", "0901000010", "camtu.hu@benhvien.vn",
+                "Lý Thị Nhung", "Đại học Điều dưỡng", "0902000010", "nhung.hu@benhvien.vn");
+        doiKhoa("KHOA-HU-02", hue, "Khoa Răng hàm mặt", "Nha khoa, bệnh lý răng hàm mặt, răng miệng",
+                "Trịnh Văn Thái", "Thạc sĩ", "0901000011", "vanthai.hu@benhvien.vn",
+                "Khuất Thị Sương", "Cao đẳng Điều dưỡng", "0902000011", "suong.hu@benhvien.vn");
+
+        BenhVien dn = benhVienMoi("Bệnh viện Đà Nẵng", "124 Hải Phòng, Thanh Khê, Đà Nẵng", "0236-3821-596", 16.0590, 108.2210);
+        doiKhoa("KHOA-DN-01", dn, "Khoa Chấn thương chỉnh hình", "Gãy xương, chấn thương, thoát vị đĩa đệm, xương khớp",
+                "Ngô Văn Trường", "Tiến sĩ", "0901000012", "vantruong.dn@benhvien.vn",
+                "Lam Thị Huyền", "Đại học Điều dưỡng", "0902000012", "huyen.dn@benhvien.vn");
+        doiKhoa("KHOA-DN-02", dn, "Khoa Tai mũi họng", "Bệnh lý tai, mũi, họng cho người lớn và trẻ em",
+                "Đặng Ngọc Sơn", "Thạc sĩ", "0901000013", "ngocson.dn@benhvien.vn",
+                "An Thị Duyên", "Cao đẳng Điều dưỡng", "0902000013", "duyen.dn@benhvien.vn");
+
+        // Miền Nam
+        BenhVien cr = benhVienMoi("Bệnh viện Chợ Rẫy", "201B Nguyễn Chí Thanh, Phường 14, Quận 10, TP. Hồ Chí Minh", "028-3855-4137", 10.7557, 106.6581);
+        doiKhoa("KHOA-CR-01", cr, "Khoa Tiêu hóa", "Bệnh dạ dày, gan ruột, nội soi tiêu hóa",
+                "Trần Minh Khôi", "Giáo sư", "0901000014", "minhkhoi.cr@benhvien.vn",
+                "Xa Thị Ngọc Mai", "Đại học Điều dưỡng", "0902000014", "maicr@benhvien.vn");
+        doiKhoa("KHOA-CR-02", cr, "Khoa Thận & Tiết niệu", "Suy thận, lọc máu, bệnh lý tiết niệu",
+                "Lâm Anh Quốc", "Tiến sĩ", "0901000015", "anhquoc.cr@benhvien.vn",
+                "Tống Thị Hạnh Phúc", "Đại học Điều dưỡng", "0902000015", "phuccr@benhvien.vn");
+
+        BenhVien dyd = benhVienMoi("Bệnh viện Đại học Y Dược TP. Hồ Chí Minh", "20 Lê Văn Sỹ, Phường 12, Quận 3, TP. Hồ Chí Minh", "028-3838-3065", 10.7787, 106.6972);
+        doiKhoa("KHOA-DY-01", dyd, "Khoa Nội tiết & Tiểu đường", "Đái tháo đường, rối loạn tuyến giáp, nội tiết",
+                "Mai Trọng Phú", "Tiến sĩ", "0901000016", "trongphu.dy@benhvien.vn",
+                "Phùng Thị Mùi", "Đại học Điều dưỡng", "0902000016", "mui.dy@benhvien.vn");
+        doiKhoa("KHOA-DY-02", dyd, "Khoa Sản phụ khoa", "Thăm khám thai, thai kỳ, sản phụ khoa",
+                "Kim Ngọc Tuyền", "Thạc sĩ", "0901000017", "ngoctuyen.dy@benhvien.vn",
+                "Đinh Thị Tú", "Đại học Điều dưỡng", "0902000017", "tu.dy@benhvien.vn");
+
+        BenhVien ct = benhVienMoi("Bệnh viện Đa khoa Trung ương Cần Thơ", "56 Nguyễn Văn Cừ, An Hòa, Ninh Kiều, Cần Thơ", "0292-3822-411", 10.0336, 105.7830);
+        doiKhoa("KHOA-CT-01", ct, "Khoa Da liễu", "Bệnh da liễu, viêm da, mụn, dị ứng da",
+                "Trịnh Thị Kim Loan", "Thạc sĩ", "0901000018", "kimloan.ct@benhvien.vn",
+                "Châu Thị Hồng", "Cao đẳng Điều dưỡng", "0902000018", "hong.ct@benhvien.vn");
+        doiKhoa("KHOA-CT-02", ct, "Khoa Chấn thương chỉnh hình", "Chấn thương, gãy xương, đau cột sống, xương khớp",
+                "Hà Văn Tùng", "Tiến sĩ", "0901000019", "vantung.ct@benhvien.vn",
+                "Hầu Thị Kim Thoa", "Đại học Điều dưỡng", "0902000019", "thoa.ct@benhvien.vn");
+    }
+
+    private BenhVien benhVienMoi(String ten, String diaChi, String sdt, Double viDo, Double kinhDo) {
+        BenhVien bv = new BenhVien();
+        bv.setTen(ten);
+        bv.setDiaChi(diaChi);
+        bv.setSoDienThoai(sdt);
+        bv.setViDo(viDo);
+        bv.setKinhDo(kinhDo);
+        return benhVienRepo.save(bv);
+    }
+
+    /** Khoa đại diện kèm 1 bác sĩ và 1 y tá cho bệnh viện trên bản đồ. */
+    private void doiKhoa(String maKhoa, BenhVien bv, String tenKhoa, String moTa,
+                         String tenBs, String hocHam, String sdtBs, String emailBs,
+                         String tenYt, String trinhDo, String sdtYt, String emailYt) {
+        Khoa k = khoa(maKhoa, tenKhoa, moTa, bv);
+        bacSi(maKhoa + "-BS", tenBs, tenKhoa.replace("Khoa ", ""), hocHam, sdtBs, emailBs, k);
+        yTa(maKhoa + "-YT", tenYt, trinhDo, sdtYt, emailYt, k);
     }
 }

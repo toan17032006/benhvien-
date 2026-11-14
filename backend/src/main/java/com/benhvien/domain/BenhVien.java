@@ -28,4 +28,10 @@ public class BenhVien {
     private String soDienThoai;
 
     private String email;
+
+    /** Vĩ độ (latitude) — dùng cho tính năng bản đồ & tìm bệnh viện gần nhất. */
+    private Double viDo;
+
+    /** Kinh độ (longitude) — dùng cho tính năng bản đồ & tìm bệnh viện gần nhất. */
+    private Double kinhDo;
 }
