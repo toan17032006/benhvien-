@@ -46,11 +46,17 @@ Nhánh `hospital` bổ sung **hệ thống đăng nhập/đăng ký đầy đủ
 Trang **`/ban-do`** (menu "Tìm bệnh viện → Bản đồ bệnh viện") — bản đồ tương tác toàn Việt Nam dùng **Leaflet + OpenStreetMap** (không cần API key):
 
 - 📍 Hiển thị **tất cả bệnh viện có tọa độ** trên bản đồ (seed sẵn 10 bệnh viện thật: Bạch Mai, Việt Đức, Nhi TƯ, Tim Hà Nội, Nghệ An, Huế, Đà Nẵng, Chợ Rẫy, ĐH Y Dược TP.HCM, Cần Thơ — mỗi nơi có khoa đại diện + bác sĩ/y tá mẫu).
-- 🔎 **Tìm bệnh viện gần nhất theo bệnh lý**: nhập bệnh lý (VD: "đau tim", "tiểu đường", "gãy xương"…) — hệ thống ghép với khoa/chuyên môn phù hợp và sắp xếp theo **khoảng cách Haversine** từ vị trí của bạn.
+- 🔎 **Tìm bệnh viện gần nhất theo bệnh lý**: nhập bệnh lý (VD: "đau tim", "tiểu đường", "gãy xương"…) — hệ thống ghép với khoa/chuyên môn phù hợp và sắp xếp theo khoảng cách từ vị trí của bạn.
 - 🧭 Chọn vị trí: nút **"Vị trí của tôi"** (định vị GPS trình duyệt) hoặc **nhấp trực tiếp lên bản đồ** để đặt điểm.
-- 👨‍⚕️ **Nhân sự bệnh viện**: chọn bệnh viện trên bản đồ/danh sách → xem đầy đủ bác sĩ (chuyên môn, học hàm, khoa, SĐT) và y tá (trình độ, khoa, SĐT).
-- API mới: `/api/tim-kiem/benh-ly`, `/api/tim-kiem/benh-vien-gan?viDo=&kinhDo=&benhLy=`, `/api/tim-kiem/benh-vien/{id}/nhan-su` (đều cần đăng nhập).
-- Bệnh viện thêm qua trang "Bệnh viện" giờ có 2 ô mới: **Vĩ độ (viDo)**, **Kinh độ (kinhDo)** để hiện trên bản đồ.
+- 🖼️ **Ảnh bệnh viện**: mỗi bệnh viện có bộ ảnh (backend tự sinh ảnh SVG minh họa tại `/api/tim-kiem/anh/*.svg` — không cần mạng ngoài; thay bằng ảnh thật qua trang "Bệnh viện").
+- 🕐 **Trạng thái mở/đóng cửa** theo giờ thật (màu xanh/đỏ như Google Maps), cấu hình `gioMoCua`/`gioDongCua` trong CRUD bệnh viện.
+- 🚗 **Thời gian di chuyển thật**: gọi dịch vụ định tuyến **OSRM** tính quãng đường + số phút đi đường bộ từ vị trí của bạn (nếu OSRM không phản hồi thì hiển thị "ước lượng").
+- 👨‍⚕️ **Nhân sự bệnh viện**: chọn bệnh viện → xem bác sĩ (chuyên môn, học hàm, khoa) và y tá (trình độ, khoa).
+- ⭐ **Đánh giá (review)**: điểm trung bình ★, danh sách nhận xét; **chỉ BỆNH NHÂN** được viết đánh giá (backend trả 403 cho vai trò khác).
+- 🎯 Chọn bệnh viện (marker hoặc danh sách) → bản đồ **bay thẳng đến bệnh viện đó** (zoom 15) + marker sáng lên như Google Maps.
+- 🔐 **Phân quyền rõ**: SIDEBAR theo vai trò — Bệnh nhân chỉ thấy "Tổng quan + Bản đồ bệnh viện"; Bác sĩ thấy thêm Khám & điều trị, Nhân sự & lịch, Kho thuốc; Admin thấy toàn bộ (kể cả Cơ sở vật chất).
+- API: `/api/tim-kiem/benh-ly`, `/api/tim-kiem/benh-vien-gan`, `/api/tim-kiem/benh-vien/{id}/nhan-su`, `/api/tim-kiem/benh-vien/{id}/danh-gia` (GET/POST).
+- Bệnh viện thêm qua trang "Bệnh viện" có ô: **Vĩ độ, Kinh độ, Ảnh (URL cách nhau bằng "|"), Giờ mở cửa, Giờ đóng cửa**.
 
 ---
 

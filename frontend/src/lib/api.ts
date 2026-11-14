@@ -8,6 +8,9 @@ export interface BenhVien {
   email?: string | null;
   viDo?: number | null;
   kinhDo?: number | null;
+  anhChinh?: string | null;
+  gioMoCua?: string | null;
+  gioDongCua?: string | null;
 }
 
 export interface Khoa {
@@ -221,8 +224,21 @@ export interface BenhVienGan {
   email?: string | null;
   viDo?: number | null;
   kinhDo?: number | null;
+  /** Danh sách URL ảnh bệnh viện. */
+  anhChinh: string[];
+  gioMoCua?: string | null;
+  gioDongCua?: string | null;
+  dangMoCua: boolean;
   khoangCachKm?: number | null;
+  /** Quãng đường đi đường bộ thật (km) — null nếu chưa chọn vị trí. */
+  quangDuongKm?: number | null;
+  /** Thời gian di chuyển (phút, đường bộ như Google Maps). */
+  thoiGianPhut?: number | null;
+  /** true nếu thời gian là ước lượng (dịch vụ định tuyến không phản hồi). */
+  thoiGianUocLuong: boolean;
   khoaPhuHop: KhoaPhuHop[];
+  trungBinhSao?: number | null;
+  soDanhGia: number;
   soKhoa: number;
   soBacSi: number;
   soYTa: number;
@@ -256,6 +272,23 @@ export interface NhanSuBenhVien {
   yTa: YTaNhanSu[];
 }
 
+export interface DanhGiaItem {
+  id: number;
+  hoTen: string;
+  vaiTro?: string | null;
+  soSao: number;
+  noiDung?: string | null;
+  thoiGian?: string | null;
+}
+
+export interface DanhGiaBenhVien {
+  benhVienId: number;
+  tenBenhVien: string;
+  trungBinhSao?: number | null;
+  soDanhGia: number;
+  danhSach: DanhGiaItem[];
+}
+
 export const timKiemApi = {
   /** Nhóm bệnh lý gợi ý cho ô tìm kiếm. */
   benhLyGoiY: () => api.get<string[]>('/api/tim-kiem/benh-ly'),
@@ -264,4 +297,9 @@ export const timKiemApi = {
     api.get<BenhVienGan[]>(`/api/tim-kiem/benh-vien-gan${qs(p)}`),
   /** Nhân sự (bác sĩ + y tá) của một bệnh viện. */
   nhanSu: (id: number) => api.get<NhanSuBenhVien>(`/api/tim-kiem/benh-vien/${id}/nhan-su`),
+  /** Đánh giá (review) của một bệnh viện. */
+  danhGia: (id: number) => api.get<DanhGiaBenhVien>(`/api/tim-kiem/benh-vien/${id}/danh-gia`),
+  /** Viết đánh giá — chỉ BỆNH NHÂN (backend trả 403 nếu vai trò khác). */
+  vietDanhGia: (id: number, d: { soSao: number; noiDung: string }) =>
+    api.post<DanhGiaBenhVien>(`/api/tim-kiem/benh-vien/${id}/danh-gia`, d),
 };

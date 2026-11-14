@@ -6,6 +6,7 @@ import com.benhvien.domain.BenhVien;
 import com.benhvien.domain.CaTruc;
 import com.benhvien.domain.ChamSoc;
 import com.benhvien.domain.ChiTietThuoc;
+import com.benhvien.domain.DanhGia;
 import com.benhvien.domain.DonThuoc;
 import com.benhvien.domain.GiuongBenh;
 import com.benhvien.domain.Khoa;
@@ -29,6 +30,7 @@ import com.benhvien.repository.BenhVienRepository;
 import com.benhvien.repository.CaTrucRepository;
 import com.benhvien.repository.ChamSocRepository;
 import com.benhvien.repository.ChiTietThuocRepository;
+import com.benhvien.repository.DanhGiaRepository;
 import com.benhvien.repository.DonThuocRepository;
 import com.benhvien.repository.GiuongBenhRepository;
 import com.benhvien.repository.KhoaRepository;
@@ -51,6 +53,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 
 /** Tạo dữ liệu mẫu tiếng Việt lần đầu chạy (chỉ khi CSDL còn rỗng). */
@@ -76,6 +79,7 @@ public class DataSeeder implements ApplicationRunner {
     private final XetNghiemRepository xetNghiemRepo;
     private final NguoiDungRepository nguoiDungRepo;
     private final PasswordEncoder passwordEncoder;
+    private final DanhGiaRepository danhGiaRepo;
 
     public DataSeeder(BenhVienRepository benhVienRepo, KhoaRepository khoaRepo,
                       PhongKhamRepository phongKhamRepo, GiuongBenhRepository giuongRepo,
@@ -85,7 +89,8 @@ public class DataSeeder implements ApplicationRunner {
                       LanNhapVienRepository lanNhapVienRepo, ChamSocRepository chamSocRepo,
                       DonThuocRepository donThuocRepo, ChiTietThuocRepository chiTietThuocRepo,
                       ThuocRepository thuocRepo, XetNghiemRepository xetNghiemRepo,
-                      NguoiDungRepository nguoiDungRepo, PasswordEncoder passwordEncoder) {
+                      NguoiDungRepository nguoiDungRepo, PasswordEncoder passwordEncoder,
+                      DanhGiaRepository danhGiaRepo) {
         this.benhVienRepo = benhVienRepo;
         this.khoaRepo = khoaRepo;
         this.phongKhamRepo = phongKhamRepo;
@@ -105,6 +110,7 @@ public class DataSeeder implements ApplicationRunner {
         this.xetNghiemRepo = xetNghiemRepo;
         this.nguoiDungRepo = nguoiDungRepo;
         this.passwordEncoder = passwordEncoder;
+        this.danhGiaRepo = danhGiaRepo;
     }
 
     @Override
@@ -117,6 +123,12 @@ public class DataSeeder implements ApplicationRunner {
         // Bệnh viện có tọa độ cho tính năng bản đồ Việt Nam — chạy cả với CSDL đã có dữ liệu cũ
         if (benhVienRepo.findAll().stream().noneMatch(b -> b.getViDo() != null)) {
             seedBenhVienBanDo();
+        }
+
+        // Ảnh + giờ mở cửa + đánh giá mẫu cho bệnh viện trên bản đồ (chạy cả với CSDL cũ)
+        boSungAnhVaGioChoBenhVienBanDo();
+        if (danhGiaRepo.count() == 0) {
+            seedDanhGiaBenhVienBanDo();
         }
 
         if (benhVienRepo.count() > 0) {
@@ -404,11 +416,13 @@ public class DataSeeder implements ApplicationRunner {
         chiTietThuocRepo.save(c);
     }
 
-    /** Tạo 3 tài khoản mẫu để thử đăng nhập ngay (chỉ khi bảng nguoi_dung còn rỗng). */
+    /** Tạo tài khoản mẫu để thử đăng nhập ngay (chỉ khi bảng nguoi_dung còn rỗng). */
     private void taoTaiKhoanDemo() {
         taiKhoan("admin", "admin123", "Quản Trị Viên", "admin@benhvien.vn", VaiTro.ADMIN);
         taiKhoan("bacsi", "doctor123", "Nguyễn Minh Quân", "bacsi@benhvien.vn", VaiTro.BAC_SI);
         taiKhoan("benhnhan", "patient123", "Trần Thị Mai", "benhnhan@benhvien.vn", VaiTro.BENH_NHAN);
+        taiKhoan("benhnhan2", "patient123", "Lê Văn Hùng", "hung@benhvien.vn", VaiTro.BENH_NHAN);
+        taiKhoan("benhnhan3", "patient123", "Phạm Thu Hà", "ha@benhvien.vn", VaiTro.BENH_NHAN);
     }
 
     private void taiKhoan(String username, String matKhau, String hoTen, String email, VaiTro vaiTro) {
@@ -514,7 +528,81 @@ public class DataSeeder implements ApplicationRunner {
         bv.setSoDienThoai(sdt);
         bv.setViDo(viDo);
         bv.setKinhDo(kinhDo);
+        bv = benhVienRepo.save(bv);
+        boSungAnhVaGio(bv);
         return benhVienRepo.save(bv);
+    }
+
+    /** Điền ảnh + giờ mở cửa cho bệnh viện trên bản đồ nếu chưa có (id quyết định dữ liệu). */
+    private void boSungAnhVaGioChoBenhVienBanDo() {
+        for (BenhVien bv : benhVienRepo.findAll()) {
+            boolean anhLoi = bv.getAnhChinh() == null
+                    || bv.getAnhChinh().contains("picsum.photos"); // nguồn cũ không truy cập được
+            if (bv.getViDo() != null && (anhLoi || bv.getGioMoCua() == null)) {
+                boSungAnhVaGio(bv);
+                benhVienRepo.save(bv);
+            }
+        }
+    }
+
+    private void boSungAnhVaGio(BenhVien bv) {
+        if (bv.getAnhChinh() == null || bv.getAnhChinh().isBlank() || bv.getAnhChinh().contains("picsum.photos")) {
+            // Ảnh SVG do backend tự sinh — luôn hiển thị được, không cần mạng ngoài
+            String goc = "/api/tim-kiem/anh/benhvien" + bv.getId();
+            bv.setAnhChinh(goc + "-1.svg|" + goc + "-2.svg|" + goc + "-3.svg");
+        }
+        if (bv.getGioMoCua() == null || bv.getGioDongCua() == null) {
+            // Luân phiên vài khung giờ tiêu biểu: 24/24, sáng sớm, giờ hành chính, cả ngày
+            int loai = (int) Math.abs(bv.getId() % 4);
+            if (loai == 0) {
+                bv.setGioMoCua(LocalTime.of(0, 0));
+                bv.setGioDongCua(LocalTime.of(23, 59));
+            } else if (loai == 1) {
+                bv.setGioMoCua(LocalTime.of(6, 0));
+                bv.setGioDongCua(LocalTime.of(22, 0));
+            } else if (loai == 2) {
+                bv.setGioMoCua(LocalTime.of(7, 0));
+                bv.setGioDongCua(LocalTime.of(17, 30));
+            } else {
+                bv.setGioMoCua(LocalTime.of(6, 30));
+                bv.setGioDongCua(LocalTime.of(21, 0));
+            }
+        }
+    }
+
+    /** Đánh giá mẫu cho bệnh viện trên bản đồ — chỉ bệnh nhân viết (khớp quy tắc phân quyền). */
+    private void seedDanhGiaBenhVienBanDo() {
+        List<BenhVien> cacBv = benhVienRepo.findAll().stream()
+                .filter(b -> b.getViDo() != null)
+                .toList();
+        List<NguoiDung> benhNhan = nguoiDungRepo.findAll().stream()
+                .filter(n -> n.getVaiTro() == VaiTro.BENH_NHAN)
+                .toList();
+        if (cacBv.isEmpty() || benhNhan.isEmpty()) {
+            return;
+        }
+        String[][] nhanXet = {
+                {"Bác sĩ tận tâm, cơ sở sạch sẽ, đặt lịch nhanh gọn.", "5"},
+                {"Chờ khám hơi lâu nhưng y tá chu đáo, thuốc đầy đủ.", "4"},
+                {"Được hướng dẫn chi tiết, chi phí minh bạch.", "5"},
+                {"Cơ sở vật chất ổn, cần cải thiện thêm bãi gửi xe.", "3"},
+                {"Khám kỹ, chỉ định xét nghiệm hợp lý. Sẽ quay lại.", "4"},
+        };
+        LocalDateTime goc = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusDays(2);
+        int i = 0;
+        for (BenhVien bv : cacBv) {
+            for (int j = 0; j < 3; j++) {
+                String[] nx = nhanXet[(i + j) % nhanXet.length];
+                DanhGia dg = new DanhGia();
+                dg.setBenhVien(bv);
+                dg.setNguoiDung(benhNhan.get((i + j) % benhNhan.size()));
+                dg.setSoSao(Integer.parseInt(nx[1]));
+                dg.setNoiDung(nx[0]);
+                dg.setThoiGian(goc.minusHours(i * 7L + j * 5L));
+                danhGiaRepo.save(dg);
+            }
+            i++;
+        }
     }
 
     /** Khoa đại diện kèm 1 bác sĩ và 1 y tá cho bệnh viện trên bản đồ. */

@@ -55,7 +55,18 @@ const NAV_GROUPS: { group: string; items: { href: string; label: string; icon: s
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, dangXuat } = useAuth();
+  const { user, vaiTro, dangXuat } = useAuth();
+
+  // PHÂN QUYỀN: mỗi vai trò chỉ thấy đúng phân hệ của mình
+  // - BENH_NHAN: xem tổng quan + nội dung bệnh viện trên bản đồ
+  // - BAC_SI: khám chữa bệnh, nhân sự & lịch, kho thuốc (không quản lý cơ sở vật chất)
+  // - ADMIN: toàn bộ phân hệ
+  const cacNhom =
+    vaiTro === 'BENH_NHAN'
+      ? NAV_GROUPS.filter((g) => g.group === 'Tổng quan' || g.group === 'Tìm bệnh viện')
+      : vaiTro === 'BAC_SI'
+        ? NAV_GROUPS.filter((g) => g.group !== 'Cơ sở vật chất')
+        : NAV_GROUPS;
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col bg-gradient-to-b from-slate-900 to-sky-950 text-slate-100">
       <div className="flex items-center gap-3 px-5 py-5">
@@ -110,7 +121,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-6">
-        {NAV_GROUPS.map((g) => (
+        {cacNhom.map((g) => (
           <div key={g.group}>
             <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400/80">{g.group}</div>
             <div className="space-y-0.5">

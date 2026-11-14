@@ -30,6 +30,8 @@ public class SecurityConfig {
                 .headers(h -> h.frameOptions(f -> f.sameOrigin())) // /h2-console dùng iframe
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/google").permitAll()
+                        // Ảnh minh họa SVG cho <img> — trình duyệt không gắn Bearer token được
+                        .requestMatchers("/api/tim-kiem/anh/**").permitAll()
                         .requestMatchers("/h2-console/**", "/error").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e.authenticationEntryPoint((req, res, ex) -> {

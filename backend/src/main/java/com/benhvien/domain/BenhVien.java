@@ -1,5 +1,6 @@
 package com.benhvien.domain;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -8,6 +9,8 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.time.LocalTime;
 
 /** Bệnh Viện — thực thể gốc trong sơ đồ ERD. */
 @Entity
@@ -34,4 +37,14 @@ public class BenhVien {
 
     /** Kinh độ (longitude) — dùng cho tính năng bản đồ & tìm bệnh viện gần nhất. */
     private Double kinhDo;
+
+    /** Ảnh bệnh viện — nhiều URL cách nhau bằng dấu "|". */
+    @Column(length = 1000)
+    private String anhChinh;
+
+    /** Giờ mở cửa (dùng cho trạng thái "Đang mở cửa / Đã đóng cửa" trên bản đồ). */
+    private LocalTime gioMoCua;
+
+    /** Giờ đóng cửa (nếu nhỏ hơn giờ mở cửa nghĩa là mở qua đêm / 24h). */
+    private LocalTime gioDongCua;
 }

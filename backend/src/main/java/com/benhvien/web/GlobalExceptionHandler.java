@@ -4,6 +4,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -24,6 +25,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Object> duLieuKhongHopLe(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(java.util.Map.of("message", ex.getMessage()));
+    }
+
+    /** Phân quyền: vai trò không đủ quyền thực hiện hành động → 403 + thông điệp tiếng Việt. */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Object> khongDuQuyen(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(java.util.Map.of("message", ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

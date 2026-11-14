@@ -2,50 +2,89 @@ package com.benhvien.web;
 
 import com.benhvien.domain.BacSi;
 import com.benhvien.domain.BenhVien;
+import com.benhvien.domain.DanhGia;
 import com.benhvien.domain.Khoa;
+import com.benhvien.domain.NguoiDung;
+import com.benhvien.domain.VaiTro;
 import com.benhvien.domain.YTa;
 import com.benhvien.repository.BacSiRepository;
 import com.benhvien.repository.BenhVienRepository;
+import com.benhvien.repository.DanhGiaRepository;
 import com.benhvien.repository.KhoaRepository;
 import com.benhvien.repository.YTaRepository;
 import com.benhvien.web.dto.BacSiView;
 import com.benhvien.web.dto.BenhVienGanRes;
+import com.benhvien.web.dto.DanhGiaReq;
+import com.benhvien.web.dto.DanhGiaRes;
+import com.benhvien.web.dto.DanhGiaView;
 import com.benhvien.web.dto.KhoaPhuHopRes;
 import com.benhvien.web.dto.NhanSuRes;
 import com.benhvien.web.dto.YTaView;
+import jakarta.validation.Valid;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.text.Normalizer;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Tìm bệnh viện gần nhất trên bản đồ Việt Nam theo bệnh lý người bệnh gặp phải,
- * kèm thông tin nhân sự (bác sĩ, y tá) của từng bệnh viện.
+ * Tìm bệnh viện gần nhất trên bản đồ Việt Nam theo bệnh lý người bệnh gặp phải:
+ * ảnh bệnh viện, trạng thái mở/đóng cửa, thời gian di chuyển đường bộ thật (OSRM),
+ * nhân sự và đánh giá (review) của từng bệnh viện.
  */
 @RestController
 @RequestMapping("/api/tim-kiem")
 public class TimKiemController {
 
+    /** Dịch vụ định tuyến công khai của OSRM (không cần API key) — tính thời gian đi đường bộ thật. */
+    private static final String OSRM_URL = "https://router.project-osrm.org/route/v1/driving/";
+
     private final BenhVienRepository benhVienRepo;
     private final KhoaRepository khoaRepo;
     private final BacSiRepository bacSiRepo;
     private final YTaRepository yTaRepo;
+    private final DanhGiaRepository danhGiaRepo;
+
+    private final HttpClient http = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(3))
+            .build();
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public TimKiemController(BenhVienRepository benhVienRepo, KhoaRepository khoaRepo,
-                             BacSiRepository bacSiRepo, YTaRepository yTaRepo) {
+                             BacSiRepository bacSiRepo, YTaRepository yTaRepo,
+                             DanhGiaRepository danhGiaRepo) {
         this.benhVienRepo = benhVienRepo;
         this.khoaRepo = khoaRepo;
         this.bacSiRepo = bacSiRepo;
         this.yTaRepo = yTaRepo;
+        this.danhGiaRepo = danhGiaRepo;
     }
 
     /** Bệnh lý phổ biến → từ khóa chuyên môn (so khớp với tên/mô tả khoa và chuyên môn bác sĩ). */
@@ -74,9 +113,54 @@ public class TimKiemController {
         return List.copyOf(BENH_LY_THEO_CHUYEN_MON.keySet());
     }
 
+    /** Bảng màu gradient cho ảnh minh họa bệnh viện (chọn theo id). */
+    private static final String[][] MAU_ANH = {
+            {"#0ea5e9", "#075985"}, {"#10b981", "#047857"}, {"#8b5cf6", "#5b21b6"},
+            {"#f59e0b", "#b45309"}, {"#ef4444", "#991b1b"}, {"#06b6d4", "#0e7490"},
+    };
+
+    /**
+     * Sinh ảnh minh họa SVG cho bệnh viện (tên dạng benhvien{id}-{stt}.svg).
+     * Không phụ thuộc dịch vụ ảnh ngoài — ảnh luôn hiển thị được, offline cũng OK.
+     */
+    @GetMapping(value = "/anh/{ten}.svg", produces = "image/svg+xml")
+    public String anhBenhVien(@PathVariable String ten) {
+        long id = 0;
+        int stt = 1;
+        try {
+            String[] phan = ten.replace("benhvien", "").split("-");
+            id = Long.parseLong(phan[0]);
+            if (phan.length > 1) {
+                stt = Integer.parseInt(phan[1]);
+            }
+        } catch (Exception ignore) {
+            // ten lạ → dùng màu mặc định
+        }
+        String[] mau = MAU_ANH[(int) Math.abs(id % MAU_ANH.length)];
+        return """
+                <svg xmlns='http://www.w3.org/2000/svg' width='640' height='400' viewBox='0 0 640 400'>
+                  <defs>
+                    <linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
+                      <stop offset='0' stop-color='%s'/>
+                      <stop offset='1' stop-color='%s'/>
+                    </linearGradient>
+                  </defs>
+                  <rect width='640' height='400' fill='url(#g)'/>
+                  <circle cx='560' cy='70' r='120' fill='rgba(255,255,255,.08)'/>
+                  <circle cx='60' cy='350' r='90' fill='rgba(255,255,255,.07)'/>
+                  <circle cx='320' cy='168' r='60' fill='rgba(255,255,255,.25)'/>
+                  <rect x='296' y='136' width='48' height='64' rx='8' fill='#ffffff'/>
+                  <rect x='288' y='144' width='64' height='48' rx='8' fill='#ffffff'/>
+                  <text x='320' y='286' text-anchor='middle' font-family='Segoe UI, Arial, sans-serif' font-size='28' font-weight='700' fill='#ffffff'>BỆNH VIỆN</text>
+                  <text x='320' y='322' text-anchor='middle' font-family='Segoe UI, Arial, sans-serif' font-size='17' fill='rgba(255,255,255,.85)'>Ảnh minh họa số %d</text>
+                </svg>
+                """.formatted(mau[0], mau[1], stt);
+    }
+
     /**
      * Gợi ý bệnh viện gần nhất từ vị trí của bệnh nhân, ưu tiên bệnh viện có khoa
-     * phù hợp với bệnh lý đã nhập. Không truyền vị trí/bệnh lý → trả về toàn bộ bệnh viện.
+     * phù hợp với bệnh lý đã nhập. Trả về kèm ảnh, trạng thái mở/đóng cửa,
+     * quãng đường và thời gian di chuyển đường bộ (OSRM — sai số thực tế như bản đồ).
      */
     @GetMapping("/benh-vien-gan")
     public List<BenhVienGanRes> benhVienGan(
@@ -88,7 +172,36 @@ public class TimKiemController {
         List<String> monCan = monPhuHop(tuKhoa);
         boolean coViTri = viDo != null && kinhDo != null;
 
+        // Tải trước điểm đánh giá của mọi bệnh viện (1 câu truy vấn duy nhất)
+        Map<Long, List<DanhGia>> danhGiaTheoBv = new HashMap<>();
+        for (DanhGia dg : danhGiaRepo.findAll()) {
+            danhGiaTheoBv.computeIfAbsent(dg.getBenhVien().getId(), k -> new ArrayList<>()).add(dg);
+        }
+
+        // Thời gian đi đường bộ thật (OSRM) — gọi song song, quá hạn thì dùng ước lượng
+        Map<Long, double[]> duongBoThucTe = new HashMap<>(); // id -> {quangDuongKm, thoiGianPhut}
+        if (coViTri) {
+            List<CompletableFuture<Void>> cacNhiemVu = new ArrayList<>();
+            for (BenhVien bv : benhVienRepo.findAll()) {
+                if (bv.getViDo() == null || bv.getKinhDo() == null) continue;
+                CompletableFuture<double[]> nhiemVu = duongBoThucTe(viDo, kinhDo, bv.getViDo(), bv.getKinhDo())
+                        .orTimeout(5, TimeUnit.SECONDS)
+                        .exceptionally(ex -> null);
+                cacNhiemVu.add(nhiemVu.thenAccept(kq -> {
+                    if (kq != null) duongBoThucTe.put(bv.getId(), kq);
+                }));
+            }
+            try {
+                CompletableFuture.allOf(cacNhiemVu.toArray(new CompletableFuture[0]))
+                        .get(7, TimeUnit.SECONDS);
+            } catch (Exception ex) {
+                // OSRM chậm/lỗi → dùng ước lượng cho các bệnh viện chưa có kết quả
+            }
+        }
+
+        LocalTime bayGio = LocalTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
         List<BenhVienGanRes> ketQua = new ArrayList<>();
+
         for (BenhVien bv : benhVienRepo.findAll()) {
             List<Khoa> cacKhoa = khoaRepo.findByBenhVienIdOrderById(bv.getId());
             int soBacSi = 0;
@@ -110,11 +223,38 @@ public class TimKiemController {
                 continue;
             }
 
-            Double km = coViTri && bv.getViDo() != null && bv.getKinhDo() != null
+            Double kmThang = coViTri && bv.getViDo() != null && bv.getKinhDo() != null
                     ? khoangCachKm(viDo, kinhDo, bv.getViDo(), bv.getKinhDo())
                     : null;
-            ketQua.add(new BenhVienGanRes(bv.getId(), bv.getTen(), bv.getDiaChi(), bv.getSoDienThoai(),
-                    bv.getEmail(), bv.getViDo(), bv.getKinhDo(), km, phuHop,
+            Double quangDuongKm = null;
+            Double thoiGianPhut = null;
+            boolean uocLuong = false;
+            if (coViTri && bv.getViDo() != null && bv.getKinhDo() != null) {
+                double[] thucTe = duongBoThucTe.get(bv.getId());
+                if (thucTe != null) {
+                    quangDuongKm = thucTe[0];
+                    thoiGianPhut = thucTe[1];
+                } else {
+                    // Ước lượng: đường bộ ~1.3 lần đường thẳng, xe máy trung bình 30 km/h
+                    uocLuong = true;
+                    quangDuongKm = round1(kmThang * 1.3);
+                    thoiGianPhut = round1(quangDuongKm / 30.0 * 60.0);
+                }
+            }
+
+            List<DanhGia> dgCuaBv = danhGiaTheoBv.getOrDefault(bv.getId(), List.of());
+            Double trungBinh = dgCuaBv.isEmpty() ? null
+                    : round1(dgCuaBv.stream().mapToInt(DanhGia::getSoSao).average().orElse(0));
+
+            ketQua.add(new BenhVienGanRes(
+                    bv.getId(), bv.getTen(), bv.getDiaChi(), bv.getSoDienThoai(), bv.getEmail(),
+                    bv.getViDo(), bv.getKinhDo(),
+                    tachAnh(bv.getAnhChinh()),
+                    bv.getGioMoCua() == null ? null : bv.getGioMoCua().toString(),
+                    bv.getGioDongCua() == null ? null : bv.getGioDongCua().toString(),
+                    dangMoCua(bv, bayGio),
+                    kmThang, quangDuongKm, thoiGianPhut, uocLuong,
+                    phuHop, trungBinh, dgCuaBv.size(),
                     cacKhoa.size(), soBacSi, soYTa));
         }
 
@@ -143,7 +283,104 @@ public class TimKiemController {
         return new NhanSuRes(id, bv.getTen(), bacSi, yTa);
     }
 
+    /** Đánh giá (review) của một bệnh viện: điểm trung bình + danh sách nhận xét. */
+    @GetMapping("/benh-vien/{id}/danh-gia")
+    public DanhGiaRes danhGia(@PathVariable Long id) {
+        BenhVien bv = benhVienRepo.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy bệnh viện " + id));
+        return taoDanhGiaRes(bv);
+    }
+
+    /** Viết đánh giá bệnh viện — PHÂN QUYỀN: chỉ vai trò BỆNH NHÂN được viết. */
+    @PostMapping("/benh-vien/{id}/danh-gia")
+    @Transactional
+    public DanhGiaRes vietDanhGia(@PathVariable Long id, @Valid @RequestBody DanhGiaReq r) {
+        NguoiDung nguoi = nguoiDungHienTai();
+        if (nguoi.getVaiTro() != VaiTro.BENH_NHAN) {
+            throw new AccessDeniedException("Chỉ bệnh nhân mới được viết đánh giá bệnh viện.");
+        }
+        BenhVien bv = benhVienRepo.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy bệnh viện " + id));
+        DanhGia dg = new DanhGia();
+        dg.setBenhVien(bv);
+        dg.setNguoiDung(nguoi);
+        dg.setSoSao(r.soSao());
+        dg.setNoiDung(r.noiDung());
+        dg.setThoiGian(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+        danhGiaRepo.save(dg);
+        return taoDanhGiaRes(bv);
+    }
+
     // ===== Hàm nội bộ =====
+
+    private NguoiDung nguoiDungHienTai() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof NguoiDung nd) {
+            return nd;
+        }
+        throw new AccessDeniedException("Chưa đăng nhập hoặc phiên đã hết hạn.");
+    }
+
+    private DanhGiaRes taoDanhGiaRes(BenhVien bv) {
+        List<DanhGia> ds = danhGiaRepo.findByBenhVienIdOrderByThoiGianDesc(bv.getId());
+        Double trungBinh = ds.isEmpty() ? null
+                : round1(ds.stream().mapToInt(DanhGia::getSoSao).average().orElse(0));
+        List<DanhGiaView> danhSach = ds.stream()
+                .map(dg -> new DanhGiaView(dg.getId(),
+                        dg.getNguoiDung() == null ? "Bệnh nhân ẩn danh" : dg.getNguoiDung().getHoTen(),
+                        dg.getNguoiDung() == null ? null : dg.getNguoiDung().getVaiTro().name(),
+                        dg.getSoSao(), dg.getNoiDung(),
+                        dg.getThoiGian() == null ? null : dg.getThoiGian().toString()))
+                .toList();
+        return new DanhGiaRes(bv.getId(), bv.getTen(), trungBinh, ds.size(), danhSach);
+    }
+
+    /** Trạng thái mở cửa theo giờ hiện tại (mở qua đêm nếu giờ đóng < giờ mở). */
+    private boolean dangMoCua(BenhVien bv, LocalTime bayGio) {
+        if (bv.getGioMoCua() == null || bv.getGioDongCua() == null) {
+            return true; // không khai báo giờ → coi như luôn mở (cấp cứu)
+        }
+        if (bv.getGioMoCua().equals(bv.getGioDongCua())) {
+            return true; // 24/24
+        }
+        if (bv.getGioMoCua().isBefore(bv.getGioDongCua())) {
+            return !bayGio.isBefore(bv.getGioMoCua()) && bayGio.isBefore(bv.getGioDongCua());
+        }
+        return !bayGio.isBefore(bv.getGioMoCua()) || bayGio.isBefore(bv.getGioDongCua());
+    }
+
+    private List<String> tachAnh(String anhChinh) {
+        if (anhChinh == null || anhChinh.isBlank()) {
+            return List.of();
+        }
+        return List.of(anhChinh.split("\\|"));
+    }
+
+    /**
+     * Gọi OSRM lấy quãng đường + thời gian đi đường bộ thật (phút, xe máy/ô tô).
+     * Trả về null nếu dịch vụ không phản hồi (caller sẽ dùng ước lượng).
+     */
+    private CompletableFuture<double[]> duongBoThucTe(double lat1, double lon1, double lat2, double lon2) {
+        String url = OSRM_URL + lon1 + "," + lat1 + ";" + lon2 + "," + lat2 + "?overview=false";
+        HttpRequest yeuCau = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(4))
+                .GET()
+                .build();
+        return http.sendAsync(yeuCau, HttpResponse.BodyHandlers.ofString())
+                .thenApply(res -> {
+                    if (res.statusCode() != 200) {
+                        throw new IllegalStateException("OSRM trả về mã " + res.statusCode());
+                    }
+                    JsonNode n = mapper.readTree(res.body());
+                    JsonNode tuyen = n.path("routes").path(0);
+                    if (tuyen.isMissingNode()) {
+                        throw new IllegalStateException("OSRM không có tuyến đường");
+                    }
+                    double km = tuyen.path("distance").asDouble() / 1000.0;
+                    double phut = tuyen.path("duration").asDouble() / 60.0;
+                    return new double[]{round1(km), round1(phut)};
+                });
+    }
 
     /** Bỏ dấu, về chữ thường, bỏ ký tự lạ — để so khớp tiếng Việt dễ dàng. */
     private String chuanHoa(String s) {
@@ -197,5 +434,9 @@ public class TimKiemController {
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                 * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    private double round1(double x) {
+        return Math.round(x * 10.0) / 10.0;
     }
 }

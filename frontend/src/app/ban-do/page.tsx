@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as LeafletNS from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { timKiemApi, type BenhVienGan, type NhanSuBenhVien } from '@/lib/api';
+import {
+  timKiemApi,
+  type BenhVienGan,
+  type NhanSuBenhVien,
+  type DanhGiaBenhVien,
+} from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { fmtDateTime } from '@/lib/format';
 import { Badge, ErrorBox, Loading, PageHeader } from '@/components/ui';
 
 interface ViTri {
@@ -11,7 +18,17 @@ interface ViTri {
   kinhDo: number;
 }
 
-/** Trang bản đồ Việt Nam: gợi ý bệnh viện gần nhất theo bệnh lý + nhân sự bệnh viện. */
+function HienSao({ so }: { so: number }) {
+  return (
+    <span className="text-amber-500" title={`${so}/5 sao`}>
+      {'★'.repeat(so)}
+      {'☆'.repeat(Math.max(0, 5 - so))}
+    </span>
+  );
+}
+
+/** Trang bản đồ Việt Nam: gợi ý bệnh viện gần nhất theo bệnh lý — ảnh, giờ mở cửa,
+ *  thời gian đi đường, nhân sự và đánh giá; bệnh nhân xem được toàn bộ nội dung. */
 export default function BanDoPage() {
   const mapDiv = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletNS.Map | null>(null);
@@ -20,6 +37,9 @@ export default function BanDoPage() {
   const markersRef = useRef<LeafletNS.LayerGroup | null>(null);
   const viTriMarkerRef = useRef<LeafletNS.Marker | null>(null);
 
+  const { vaiTro } = useAuth();
+  const laBenhNhan = vaiTro === 'BENH_NHAN';
+
   const [all, setAll] = useState<BenhVienGan[]>([]);
   const [ketQua, setKetQua] = useState<BenhVienGan[] | null>(null);
   const [benhLy, setBenhLy] = useState('');
@@ -27,6 +47,9 @@ export default function BanDoPage() {
   const [viTri, setViTri] = useState<ViTri | null>(null);
   const [selected, setSelected] = useState<BenhVienGan | null>(null);
   const [nhanSu, setNhanSu] = useState<NhanSuBenhVien | null>(null);
+  const [danhGia, setDanhGia] = useState<DanhGiaBenhVien | null>(null);
+  const [saoChon, setSaoChon] = useState(5);
+  const [noiDungDanhGia, setNoiDungDanhGia] = useState('');
   const [loading, setLoading] = useState(true);
   const [dangTim, setDangTim] = useState(false);
   const [err, setErr] = useState('');
@@ -73,7 +96,7 @@ export default function BanDoPage() {
     timKiemApi.benhLyGoiY().then(setGoiY).catch(() => {/* gợi ý không bắt buộc */});
   }, []);
 
-  // ===== Vẽ marker bệnh viện (danh sách hiện tại: kết quả tìm kiếm hoặc toàn bộ) =====
+  // ===== Vẽ marker bệnh viện (marker được chọn có vòng sáng như Google Maps) =====
   const dsHienTai = ketQua ?? all;
 
   useEffect(() => {
@@ -83,21 +106,25 @@ export default function BanDoPage() {
     layer.clearLayers();
     for (const bv of dsHienTai) {
       if (bv.viDo == null || bv.kinhDo == null) continue;
+      const daChon = selected?.id === bv.id;
       const icon = L.divIcon({
         className: '',
         html:
-          '<div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;' +
-          'border-radius:50%;background:#0ea5e9;color:#fff;font-size:16px;box-shadow:0 2px 6px rgba(2,132,199,.5);' +
-          'border:2px solid #fff;">✚</div>',
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
+          '<div style="display:flex;align-items:center;justify-content:center;' +
+          (daChon ? 'width:44px;height:44px;font-size:20px;background:#0284c7;border:3px solid #fff;box-shadow:0 0 0 8px rgba(2,132,199,.30);' : 'width:34px;height:34px;font-size:16px;background:#0ea5e9;border:2px solid #fff;box-shadow:0 2px 6px rgba(2,132,199,.5);') +
+          'border-radius:50%;color:#fff;">✚</div>',
+        iconSize: daChon ? [44, 44] : [34, 34],
+        iconAnchor: daChon ? [22, 22] : [17, 17],
       });
-      const marker = L.marker([bv.viDo, bv.kinhDo], { icon }).addTo(layer);
-      marker.bindTooltip(bv.ten, { direction: 'top', offset: [0, -14] });
+      const marker = L.marker([bv.viDo, bv.kinhDo], { icon, zIndexOffset: daChon ? 1000 : 0 }).addTo(layer);
+      marker.bindTooltip(
+        `${bv.ten} · ${bv.dangMoCua ? 'Đang mở cửa' : 'Đã đóng cửa'}`,
+        { direction: 'top', offset: [0, -16] },
+      );
       marker.on('click', () => chonBenhVien(bv));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dsHienTai]);
+  }, [dsHienTai, selected]);
 
   // ===== Marker "vị trí của tôi" (chấm xanh) =====
   useEffect(() => {
@@ -120,18 +147,25 @@ export default function BanDoPage() {
     viTriMarkerRef.current = L.marker([viTri.viDo, viTri.kinhDo], { icon }).addTo(map);
   }, [viTri]);
 
-  // ===== Chọn bệnh viện trên bản đồ / danh sách =====
+  // ===== Chọn bệnh viện: bản đồ chỉ thẳng vào bệnh viện đó (zoom gần như Google Maps) =====
   const chonBenhVien = useCallback((bv: BenhVienGan) => {
     setSelected(bv);
     setNhanSu(null);
+    setDanhGia(null);
+    setSaoChon(5);
+    setNoiDungDanhGia('');
     const map = mapRef.current;
     if (map && bv.viDo != null && bv.kinhDo != null) {
-      map.flyTo([bv.viDo, bv.kinhDo], Math.max(map.getZoom(), 11), { duration: 0.6 });
+      map.flyTo([bv.viDo, bv.kinhDo], 15, { duration: 1.0 });
     }
     timKiemApi
       .nhanSu(bv.id)
       .then(setNhanSu)
       .catch((ex) => setErr(ex instanceof Error ? ex.message : 'Không tải được nhân sự'));
+    timKiemApi
+      .danhGia(bv.id)
+      .then(setDanhGia)
+      .catch((ex) => setErr(ex instanceof Error ? ex.message : 'Không tải được đánh giá'));
   }, []);
 
   // ===== Tìm bệnh viện gần nhất theo bệnh lý + vị trí =====
@@ -172,12 +206,49 @@ export default function BanDoPage() {
     );
   }
 
+  // ===== Bệnh nhân gửi đánh giá =====
+  async function guiDanhGia(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selected) return;
+    setErr('');
+    try {
+      const moi = await timKiemApi.vietDanhGia(selected.id, {
+        soSao: saoChon,
+        noiDung: noiDungDanhGia,
+      });
+      setDanhGia(moi);
+      setNoiDungDanhGia('');
+      setSaoChon(5);
+      // Cập nhật điểm trong danh sách đang hiển thị
+      const capNhat = (x: BenhVienGan) =>
+        x.id === selected.id ? { ...x, trungBinhSao: moi.trungBinhSao, soDanhGia: moi.soDanhGia } : x;
+      setKetQua((kq) => (kq ? kq.map(capNhat) : null));
+      setAll((a) => a.map(capNhat));
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : 'Gửi đánh giá thất bại');
+    }
+  }
+
+  const lopInput =
+    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20';
+
   return (
     <div>
       <PageHeader
         title="Bản đồ bệnh viện Việt Nam"
-        desc="Gợi ý bệnh viện gần nhất theo bệnh lý — nhấp bản đồ để đặt vị trí, chọn bệnh viện để xem nhân sự"
+        desc="Gợi ý bệnh viện gần nhất theo bệnh lý — ảnh, giờ mở cửa, thời gian đi đường, nhân sự và đánh giá"
       />
+
+      {/* Phân quyền theo vai trò */}
+      <div className={`mb-4 rounded-lg border px-4 py-2.5 text-sm ${
+        laBenhNhan
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          : 'border-slate-200 bg-slate-50 text-slate-600'
+      }`}>
+        {laBenhNhan
+          ? '🟢 Bạn đang xem với vai trò Bệnh nhân: được xem toàn bộ nội dung bệnh viện và viết đánh giá.'
+          : '🔵 Bạn đang xem với vai trò Quản trị/Bác sĩ: được xem toàn bộ nội dung bệnh viện (chỉ Bệnh nhân viết đánh giá).'}
+      </div>
 
       {err && (
         <div className="mb-4">
@@ -193,7 +264,7 @@ export default function BanDoPage() {
           </div>
         </div>
 
-        {/* ===== Cột phải: tìm kiếm + kết quả + nhân sự ===== */}
+        {/* ===== Cột phải: tìm kiếm + kết quả + chi tiết ===== */}
         <aside className="w-full shrink-0 space-y-4 lg:w-96">
           {/* Ô tìm kiếm */}
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -207,7 +278,7 @@ export default function BanDoPage() {
               value={benhLy}
               onChange={(e) => setBenhLy(e.target.value)}
               placeholder="VD: đau tim, tiểu đường, gãy xương..."
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+              className={lopInput}
             />
             <datalist id="goiYBenhLy">
               {goiY.map((g) => (
@@ -233,16 +304,14 @@ export default function BanDoPage() {
             <p className="mt-2 text-xs text-slate-400">
               {viTri
                 ? `Vị trí của bạn: ${viTri.viDo.toFixed(4)}, ${viTri.kinhDo.toFixed(4)} — nhấp bản đồ để đổi.`
-                : 'Nhấp vào bản đồ hoặc bấm “Vị trí của tôi” để tính khoảng cách.'}
+                : 'Nhấp vào bản đồ hoặc bấm “Vị trí của tôi” để tính thời gian đi đường.'}
             </p>
           </div>
 
-          {/* Danh sách gợi ý */}
+          {/* Danh sách gợi ý: ảnh + trạng thái mở cửa + thời gian + sao */}
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
-              {ketQua != null
-                ? `Gợi ý phù hợp (${ketQua.length})`
-                : `Bệnh viện trên bản đồ (${all.length})`}
+              {ketQua != null ? `Gợi ý phù hợp (${ketQua.length})` : `Bệnh viện trên bản đồ (${all.length})`}
             </div>
             {loading ? (
               <div className="p-4">
@@ -253,7 +322,7 @@ export default function BanDoPage() {
                 Không có bệnh viện phù hợp — thử nhập bệnh lý khác hoặc bỏ điều kiện vị trí.
               </p>
             ) : (
-              <ul className="max-h-[300px] divide-y divide-slate-100 overflow-y-auto">
+              <ul className="max-h-[340px] divide-y divide-slate-100 overflow-y-auto">
                 {dsHienTai.map((bv) => (
                   <li key={bv.id}>
                     <button
@@ -262,23 +331,41 @@ export default function BanDoPage() {
                         selected?.id === bv.id ? 'bg-sky-50' : ''
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-slate-800">{bv.ten}</span>
-                        {bv.khoangCachKm != null && (
-                          <Badge text={bv.khoangCachKm.toFixed(1) + ' km'} tone={bv.khoangCachKm < 100 ? 'green' : 'sky'} />
+                      <div className="flex gap-3">
+                        {bv.anhChinh.length > 0 && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={bv.anhChinh[0]}
+                            alt={bv.ten}
+                            className="h-14 w-20 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+                          />
                         )}
-                      </div>
-                      <p className="mt-0.5 truncate text-xs text-slate-500">{bv.diaChi}</p>
-                      {bv.khoaPhuHop.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {bv.khoaPhuHop.map((k) => (
-                            <Badge key={k.id} text={k.tenKhoa} tone="sky" />
-                          ))}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-semibold text-slate-800">{bv.ten}</span>
+                            <Badge
+                              text={bv.dangMoCua ? 'Đang mở cửa' : 'Đã đóng cửa'}
+                              tone={bv.dangMoCua ? 'green' : 'red'}
+                            />
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-slate-500">{bv.diaChi}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+                            {bv.trungBinhSao != null && (
+                              <span>
+                                <HienSao so={Math.round(bv.trungBinhSao)} />
+                                <span className="ml-1 text-slate-500">
+                                  {bv.trungBinhSao} ({bv.soDanhGia})
+                                </span>
+                              </span>
+                            )}
+                            {bv.thoiGianPhut != null && (
+                              <span className="text-sky-600">
+                                🛵 {bv.thoiGianPhut} phút · {bv.quangDuongKm} km{bv.thoiGianUocLuong ? ' (ước lượng)' : ''}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      )}
-                      <p className="mt-1 text-xs text-slate-400">
-                        {bv.soBacSi} bác sĩ · {bv.soYTa} y tá · {bv.soKhoa} khoa
-                      </p>
+                      </div>
                     </button>
                   </li>
                 ))}
@@ -286,73 +373,144 @@ export default function BanDoPage() {
             )}
           </div>
 
-          {/* Chi tiết bệnh viện đã chọn + nhân sự */}
+          {/* Chi tiết bệnh viện đã chọn: ảnh + giờ + nhân sự + đánh giá */}
           {selected && (
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-4 py-3">
-                <h2 className="text-sm font-bold text-slate-800">{selected.ten}</h2>
+              {selected.anhChinh.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto p-3">
+                  {selected.anhChinh.map((url, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={i}
+                      src={url}
+                      alt={`${selected.ten} — ảnh ${i + 1}`}
+                      className="h-24 w-36 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="border-y border-slate-100 px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-bold text-slate-800">{selected.ten}</h2>
+                  <Badge
+                    text={selected.dangMoCua ? 'Đang mở cửa' : 'Đã đóng cửa'}
+                    tone={selected.dangMoCua ? 'green' : 'red'}
+                  />
+                </div>
                 <p className="mt-0.5 text-xs text-slate-500">{selected.diaChi}</p>
-                {selected.soDienThoai && (
-                  <p className="mt-0.5 text-xs text-slate-500">Điện thoại: {selected.soDienThoai}</p>
-                )}
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {selected.gioMoCua && selected.gioDongCua
+                    ? `Giờ mở cửa: ${selected.gioMoCua} – ${selected.gioDongCua}`
+                    : 'Mở cửa 24/24'}
+                  {selected.soDienThoai ? ` · ĐT: ${selected.soDienThoai}` : ''}
+                </p>
                 {selected.khoangCachKm != null && (
                   <p className="mt-1 text-xs font-medium text-sky-600">
-                    Cách bạn {selected.khoangCachKm.toFixed(1)} km
+                    {selected.thoiGianPhut != null
+                      ? `🛵 Đi đến mất khoảng ${selected.thoiGianPhut} phút (${selected.quangDuongKm} km đường bộ)${selected.thoiGianUocLuong ? ' — ước lượng' : ''}`
+                      : `Cách bạn ${selected.khoangCachKm} km (đường thẳng)`}
                   </p>
                 )}
               </div>
+
+              {/* Nhân sự */}
               {nhanSu == null ? (
                 <div className="p-4">
                   <Loading text="Đang tải nhân sự..." />
                 </div>
               ) : (
-                <div className="max-h-[340px] space-y-4 overflow-y-auto p-4">
-                  <div>
-                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Bác sĩ ({nhanSu.bacSi.length})
+                <div className="border-b border-slate-100 p-4">
+                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Nhân sự ({nhanSu.bacSi.length} bác sĩ · {nhanSu.yTa.length} y tá)
+                  </h3>
+                  <ul className="space-y-2">
+                    {nhanSu.bacSi.map((b) => (
+                      <li key={b.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-slate-800">{b.hoTen}</span>
+                          {b.hocHam && <Badge text={b.hocHam} tone="sky" />}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {b.chuyenMon ? b.chuyenMon + ' · ' : ''}{b.tenKhoa}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Đánh giá */}
+              {danhGia && (
+                <div className="p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Đánh giá ({danhGia.soDanhGia})
                     </h3>
-                    {nhanSu.bacSi.length === 0 ? (
-                      <p className="text-xs text-slate-400">Chưa có thông tin bác sĩ.</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {nhanSu.bacSi.map((b) => (
-                          <li key={b.id} className="rounded-lg bg-slate-50 px-3 py-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-semibold text-slate-800">{b.hoTen}</span>
-                              {b.hocHam && <Badge text={b.hocHam} tone="sky" />}
-                            </div>
-                            <p className="text-xs text-slate-500">
-                              {b.chuyenMon ? b.chuyenMon + ' · ' : ''}{b.tenKhoa}
-                            </p>
-                            {b.soDienThoai && (
-                              <p className="text-xs text-slate-400">ĐT: {b.soDienThoai}</p>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
+                    {danhGia.trungBinhSao != null && (
+                      <span className="text-sm">
+                        <HienSao so={Math.round(danhGia.trungBinhSao)} />
+                        <span className="ml-1 font-semibold text-slate-700">{danhGia.trungBinhSao}/5</span>
+                      </span>
                     )}
                   </div>
-                  <div>
-                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Y tá ({nhanSu.yTa.length})
-                    </h3>
-                    {nhanSu.yTa.length === 0 ? (
-                      <p className="text-xs text-slate-400">Chưa có thông tin y tá.</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {nhanSu.yTa.map((y) => (
-                          <li key={y.id} className="rounded-lg bg-slate-50 px-3 py-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-semibold text-slate-800">{y.hoTen}</span>
-                              {y.trinhDo && <Badge text={y.trinhDo} tone="gray" />}
-                            </div>
-                            <p className="text-xs text-slate-500">{y.tenKhoa}</p>
-                            {y.soDienThoai && <p className="text-xs text-slate-400">ĐT: {y.soDienThoai}</p>}
-                          </li>
+                  {danhGia.danhSach.length === 0 ? (
+                    <p className="text-xs text-slate-400">Chưa có đánh giá nào cho bệnh viện này.</p>
+                  ) : (
+                    <ul className="max-h-52 space-y-2 overflow-y-auto">
+                      {danhGia.danhSach.map((d) => (
+                        <li key={d.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-slate-800">{d.hoTen}</span>
+                            <HienSao so={d.soSao} />
+                          </div>
+                          <p className="mt-0.5 text-xs text-slate-600">{d.noiDung}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-400">
+                            {d.thoiGian ? fmtDateTime(d.thoiGian) : ''}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* Form viết đánh giá — phân quyền: chỉ BỆNH NHÂN */}
+                  {laBenhNhan ? (
+                    <form onSubmit={guiDanhGia} className="mt-4 space-y-2 rounded-lg border border-sky-100 bg-sky-50/60 p-3">
+                      <p className="text-xs font-semibold text-slate-700">Viết đánh giá của bạn:</p>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setSaoChon(s)}
+                            className={`text-2xl leading-none transition ${
+                              s <= saoChon ? 'text-amber-500' : 'text-slate-300 hover:text-amber-300'
+                            }`}
+                            aria-label={`${s} sao`}
+                          >
+                            ★
+                          </button>
                         ))}
-                      </ul>
-                    )}
-                  </div>
+                      </div>
+                      <textarea
+                        value={noiDungDanhGia}
+                        onChange={(e) => setNoiDungDanhGia(e.target.value)}
+                        required
+                        rows={2}
+                        placeholder="Trải nghiệm của bạn tại bệnh viện này..."
+                        className={lopInput}
+                      />
+                      <button
+                        type="submit"
+                        className="w-full rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-sky-700"
+                      >
+                        Gửi đánh giá
+                      </button>
+                    </form>
+                  ) : (
+                    <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                      Chỉ tài khoản vai trò <b>Bệnh nhân</b> mới có thể viết đánh giá.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
