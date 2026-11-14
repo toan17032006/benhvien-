@@ -58,11 +58,11 @@ export default function Sidebar() {
   const { user, vaiTro, dangXuat } = useAuth();
 
   // PHÂN QUYỀN: mỗi vai trò chỉ thấy đúng phân hệ của mình
-  // - BENH_NHAN: xem tổng quan + nội dung bệnh viện trên bản đồ
+  // - Chưa đăng nhập hoặc BENH_NHAN: tổng quan + nội dung bệnh viện trên bản đồ
   // - BAC_SI: khám chữa bệnh, nhân sự & lịch, kho thuốc (không quản lý cơ sở vật chất)
   // - ADMIN: toàn bộ phân hệ
   const cacNhom =
-    vaiTro === 'BENH_NHAN'
+    vaiTro === 'BENH_NHAN' || vaiTro == null
       ? NAV_GROUPS.filter((g) => g.group === 'Tổng quan' || g.group === 'Tìm bệnh viện')
       : vaiTro === 'BAC_SI'
         ? NAV_GROUPS.filter((g) => g.group !== 'Cơ sở vật chất')
