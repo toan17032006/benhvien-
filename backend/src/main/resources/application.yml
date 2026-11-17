@@ -2,10 +2,6 @@ server:
   port: 8081
 
 spring:
-  config:
-    import: optional:file:./.env[.properties]
-  config:
-    import: optional:file:./.env[.properties]
   application:
     name: benhvien-backend
   datasource:
@@ -31,9 +27,6 @@ logging:
 
 # ===== Đăng nhập (JWT) & Google =====
 app:
-  gemini:
-    api-key: ${GEMINI_API_KEY:}
-    model: ${GEMINI_MODEL:gemini-flash-latest}
   jwt:
     # Đổi bằng biến môi trường JWT_SECRET khi triển khai thật (tối thiểu 32 ký tự)
     secret: ${JWT_SECRET:benhvien-secret-key-can-doi-truoc-khi-trien-khai-he-thong}

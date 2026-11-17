@@ -8,7 +8,6 @@ const NAV_GROUPS: { group: string; items: { href: string; label: string; icon: s
   {
     group: 'Tổng quan',
     items: [
-      { href: '/tro-ly-ai', label: 'Trợ lý AI', icon: 'M8 10h8M8 14h5M4 4h16v14H8l-4 4z' },
       { href: '/', label: 'Bảng điều khiển', icon: 'M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3m10-11v10a1 1 0 01-1 1h-3m-6 0h6' },
     ],
   },
