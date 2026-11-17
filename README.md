@@ -284,3 +284,9 @@ benhvien/
 | Lần đầu chạy chậm | Maven/npm đang tải dependencies — chỉ xảy ra 1 lần |
 | CSDL bị sạch mỗi lần xóa thư mục `backend/data/` | H2 lưu theo file; xóa file là reset về dữ liệu mẫu |
 | Muốn dữ liệu mẫu sinh lại từ đầu | Xóa thư mục `backend/data/` rồi khởi động lại backend |
+# Trợ lý AI sức khỏe (nhánh hospital)
+
+Mở **Trợ lý AI** trong menu sau khi đăng nhập bằng tài khoản bệnh nhân, bác sĩ hoặc admin. Hội thoại chỉ giữ trong bộ nhớ trang, không lưu vào cơ sở dữ liệu. Câu hỏi được gửi tới Google Gemini; không nhập thông tin định danh bệnh nhân.
+
+Đặt `GEMINI_API_KEY` trong biến môi trường backend hoặc file `backend/.env` (được Git bỏ qua). Có thể đặt `GEMINI_MODEL`, mặc định `gemini-flash-latest`. Khởi động backend từ thư mục `backend` như các script có sẵn. Mẫu cấu hình: `backend/.env.example`. Không đặt key trong frontend. API: `POST /api/ai/chat`, bắt buộc JWT, nhận `messages` luân phiên `user/model`, tối đa 19 tin, mỗi tin tối đa 4000 ký tự.
+
